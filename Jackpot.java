@@ -40,9 +40,9 @@ public class Jackpot extends AbstractContract {
     public void processBlock(BlockContext context) {
         // Read contract configuration
         int chainId = getContractParams().getInt("chain", 2);
-        int frequency = getContractParams().getInt("frequency", 100);
+        int frequency = getContractParams().getInt("frequency", 30);
         //String contractRs = context.getConfig().getAccountRs();
-        String collectionRs = getContractParams().getString("collectionRs", "");         //if none specified, this will make the contract crash.
+        String collectionRs = getContractParams().getString("collectionRs", "ARDOR-6645-FEKY-BC5T-EPW5D");         //if none specified, this will make the contract crash.
 
         // Check the height if it shold perform payment distribution on this height
         int height = context.getHeight();
@@ -57,13 +57,16 @@ public class Jackpot extends AbstractContract {
 
         List<TransactionResponse> payments = getPaymentTransactions(context, chainId, Math.max(height - frequency, 2), context.getConfig().getAccount());
         if (payments.size() == 0) {
-            context.logInfoMessage("No incoming payments between block %d and %d", Math.max(0, height - frequency + 1), height);
+            context.logInfoMessage("CONTRACT: Jackpot: No incoming payments between block %d and %d", Math.max(0, height - frequency + 1), height);
             return;
         }
-        context.logInfoMessage("Incoming payments between block %d and %d, now checking against collection reqs", Math.max(0, height - frequency + 1), height);
+        context.logInfoMessage("CONTRACT: Jackpot: Incoming payments between block %d and %d, now checking against collection reqs", Math.max(0, height - frequency + 1), height);
 
         Set<String> Senders = getUniqueSenders(payments);
-        List<String> Winners = Senders.stream().filter(Sender-> confirmJackpotForSender(Sender,collectionAssets,payments)).collect(Collectors.toList());
+        context.logInfoMessage("CONTRACT: Jackpot: getUniqueSenders(): "+Senders.toString());
+
+        List<String> Winners = Senders.stream().filter(Sender-> confirmJackpotForSender(context, Sender,collectionAssets,payments)).collect(Collectors.toList());
+        context.logInfoMessage("CONTRACT: Jackpot: confirmJackpotForSender() Winners: "+Winners.toString());
 
         long balance = 0;
 
@@ -76,14 +79,16 @@ public class Jackpot extends AbstractContract {
             long price = (balance- (fee*Winners.size())) / Winners.size();
 
             Winners.forEach(Winner -> {
+                context.logInfoMessage("CONTRACT: Jackpot: Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height,Winner);
                 SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(Winner).amountNQT(price).feeNQT(fee);
+                context.logInfoMessage("CONTRACT: Jackpot: Send Prize: %d Ignis to %s", price, Winner);
                 context.createTransaction(sendMoneyCall);
-                context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height,Winner);
             });
-            // done
+            context.logInfoMessage("CONTRACT: Jackpot: finished, exiting.");
+            return;
         }
         // no winners found!
-        context.logInfoMessage("No set of incoming assets between block %d and %d won the jackpot", Math.max(0, height - frequency + 1), height);
+        context.logInfoMessage("CONTRACT: Jackpot: No set of incoming assets between block %d and %d won the jackpot", Math.max(0, height - frequency + 1), height);
     }
 
     /**
@@ -134,21 +139,27 @@ public class Jackpot extends AbstractContract {
         return new JA(schachtel.getObject(0));
     }
 
-    private boolean confirmJackpotForSender(String Sender, JA collectionAssets, List<TransactionResponse> transactionList){
+    /*
+     *
+     */
+    private boolean confirmJackpotForSender(AbstractContractContext context, String Sender, JA collectionAssets, List<TransactionResponse> transactionList){
         ListIterator caItr = collectionAssets.listIterator();
         while (caItr.hasNext()) {
             JSONObject assetObj = (JSONObject) caItr.next();
             JO asset = new JO(assetObj);
             String assetId = asset.getString("asset");
+            context.logInfoMessage("CONTRACT: confirmJackpotForSender(): Checking for collection(Asset)Id: %s",assetId);
             Object[] matching = transactionList
                     .stream()
                     .filter(payment -> payment.getAttachmentJson().getString("asset").equals(assetId) & payment.getSender().equals(Sender))
                     .toArray();
             if (matching.length == 0){
                 // this asset not found, no jackpot for you..
+                context.logInfoMessage("CONTRACT: confirmJackpotForSender(): No matching asset: %s for collectionId: %s, exit",matching.toString(),assetId);
                 return false;
             }
             if (matching.length >1){
+                context.logInfoMessage("CONTRACT: confirmJackpotForSender(): Too many matching assets: %s for collectionId: %s, exit",matching.toString(),assetId);
                 // exceptional case, the guy send this one twice.
                 // TODO cater for this case
                 return false;
@@ -167,9 +178,9 @@ public class Jackpot extends AbstractContract {
     public void processRequest(RequestContext context) {
         context.logInfoMessage("CONTRACT: Jackpot: received API request.");
 
-        int frequency = getContractParams().getInt("frequency", 10);
-        int confirmationTime = getContractParams().getInt("confirmationTime", 5);
-        String collectionRs = getContractParams().getString("collectionRs", "");
+        int frequency = getContractParams().getInt("frequency", 30);
+        int confirmationTime = getContractParams().getInt("confirmationTime", 2);
+        String collectionRs = getContractParams().getString("collectionRs", "ARDOR-6645-FEKY-BC5T-EPW5D");
 
         String jackount = context.getConfig().getAccountRs();
 
