@@ -37,19 +37,19 @@ public class Jackpot extends AbstractContract {
      * @param context contract context
      */
     @Override
-    public void processBlock(BlockContext context) {
+    public JO processBlock(BlockContext context) {
         // Read contract configuration
-        int chainId = getContractParams().getInt("chain", 2);
-        int frequency = getContractParams().getInt("frequency", 30);
+        int chainId = 2;//getContractParams().getInt("chain", 2);
+        int frequency = 30;//getContractParams().getInt("frequency", 30);
         //String contractRs = context.getConfig().getAccountRs();
-        String collectionRs = getContractParams().getString("collectionRs", "ARDOR-6645-FEKY-BC5T-EPW5D");         //if none specified, this will make the contract crash.
+        String collectionRs = "ARDOR-YDK2-LDGG-3QL8-3Z9JD"; //getContractParams().getString("collectionRs", "ARDOR-6645-FEKY-BC5T-EPW5D");         //if none specified, this will make the contract crash.
 
         // Check the height if it shold perform payment distribution on this height
         int height = context.getHeight();
         int nextrun = (height / frequency) * frequency + frequency;
         if (height % frequency != 0) {
             context.logInfoMessage("CONTRACT: Jackpot: ignore block at height %d, next run at height %d", height, nextrun);
-            return;
+            return new JO();
         }
         context.logInfoMessage("CONTRACT: Jackpot: run contract at height %d", height);
 
@@ -58,7 +58,7 @@ public class Jackpot extends AbstractContract {
         List<TransactionResponse> payments = getPaymentTransactions(context, chainId, Math.max(height - frequency, 2), context.getConfig().getAccount());
         if (payments.size() == 0) {
             context.logInfoMessage("CONTRACT: Jackpot: No incoming payments between block %d and %d", Math.max(0, height - frequency + 1), height);
-            return;
+            return new JO();
         }
         context.logInfoMessage("CONTRACT: Jackpot: Incoming payments between block %d and %d, now checking against collection reqs", Math.max(0, height - frequency + 1), height);
 
@@ -85,10 +85,11 @@ public class Jackpot extends AbstractContract {
                 context.createTransaction(sendMoneyCall);
             });
             context.logInfoMessage("CONTRACT: Jackpot: finished, exiting.");
-            return;
+            return new JO();
         }
         // no winners found!
         context.logInfoMessage("CONTRACT: Jackpot: No set of incoming assets between block %d and %d won the jackpot", Math.max(0, height - frequency + 1), height);
+        return new JO();
     }
 
     /**
@@ -175,12 +176,12 @@ public class Jackpot extends AbstractContract {
      * @param context contract contract
      */
     @Override
-    public void processRequest(RequestContext context) {
+    public JO processRequest(RequestContext context) {
         context.logInfoMessage("CONTRACT: Jackpot: received API request.");
 
-        int frequency = getContractParams().getInt("frequency", 30);
-        int confirmationTime = getContractParams().getInt("confirmationTime", 2);
-        String collectionRs = getContractParams().getString("collectionRs", "ARDOR-6645-FEKY-BC5T-EPW5D");
+        int frequency = 30;
+        int confirmationTime = 2;
+        String collectionRs = "ARDOR-YDK2-LDGG-3QL8-3Z9JD";
 
         String jackount = context.getConfig().getAccountRs();
 
@@ -199,6 +200,7 @@ public class Jackpot extends AbstractContract {
         retresponse.put("collectionSize", numAssets);
         retresponse.put("jackpotRunFrequency", frequency);
         retresponse.put("jackpotConfirmationTime", confirmationTime);
-        context.setResponse(retresponse);
+        //context.setResponse(retresponse);
+        return retresponse;
     }
 }
