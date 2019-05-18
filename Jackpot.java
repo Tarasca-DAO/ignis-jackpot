@@ -31,6 +31,22 @@ import static nxt.blockchain.ChildChain.IGNIS;
  */
 public class Jackpot extends AbstractContract {
 
+    @ContractParametersProvider
+    public interface Params {
+        @ContractSetupParameter
+        default int chainId() {
+            return 2;
+        }
+
+        @ContractSetupParameter
+        default int frequency() {
+            return 30;
+        }
+
+        @ContractSetupParameter
+        default String collectionRs() { return "ARDOR-YDK2-LDGG-3QL8-3Z9JD"; }
+    }
+
     /**
      * This is triggered every block, executes payout every _frequency_th block.
      * payout is to every account that has met the requirements.
@@ -38,11 +54,14 @@ public class Jackpot extends AbstractContract {
      */
     @Override
     public JO processBlock(BlockContext context) {
+        Params params = context.getParams(Params.class);
+
         // Read contract configuration
-        int chainId = 2;//getContractParams().getInt("chain", 2);
-        int frequency = 30;//getContractParams().getInt("frequency", 30);
-        //String contractRs = context.getConfig().getAccountRs();
-        String collectionRs = "ARDOR-YDK2-LDGG-3QL8-3Z9JD"; //getContractParams().getString("collectionRs", "ARDOR-6645-FEKY-BC5T-EPW5D");         //if none specified, this will make the contract crash.
+        //int maxAmountNXT = context.getParams(Params.class).maxAmountNXT();
+        int chainId = context.getParams(Params.class).chainId();
+        int frequency = context.getParams(Params.class).frequency();
+        String collectionRs = context.getParams(Params.class).collectionRs();
+
 
         // Check the height if it shold perform payment distribution on this height
         int height = context.getHeight();
@@ -51,11 +70,11 @@ public class Jackpot extends AbstractContract {
             context.logInfoMessage("CONTRACT: Jackpot: ignore block at height %d, next run at height %d", height, nextrun);
             return new JO();
         }
-        context.logInfoMessage("CONTRACT: Jackpot: run contract at height %d", height);
+        context.logInfoMessage("CONTRACT: Jackpot: run contract at height %d with params chainId %d, frequency: %d, collection: %s", height,chainId,frequency,collectionRs);
 
         JA collectionAssets = getCollectionAssets(collectionRs);
 
-        List<TransactionResponse> payments = getPaymentTransactions(context, chainId, Math.max(height - frequency, 2), context.getConfig().getAccount());
+        List<TransactionResponse> payments = getPaymentTransactions(context, chainId, Math.max(height - frequency, 2), context.getAccount());
         if (payments.size() == 0) {
             context.logInfoMessage("CONTRACT: Jackpot: No incoming payments between block %d and %d", Math.max(0, height - frequency + 1), height);
             return new JO();
@@ -71,7 +90,7 @@ public class Jackpot extends AbstractContract {
         long balance = 0;
 
         if (Winners.size() > 0){
-            JO response = GetBalanceCall.create(2).account(context.getConfig().getAccountRs()).call();
+            JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
             balance = Long.parseLong((String) response.get("balanceNQT"));
 
 
@@ -85,7 +104,7 @@ public class Jackpot extends AbstractContract {
                 context.createTransaction(sendMoneyCall);
             });
             context.logInfoMessage("CONTRACT: Jackpot: finished, exiting.");
-            return new JO();
+            return context.getResponse();
         }
         // no winners found!
         context.logInfoMessage("CONTRACT: Jackpot: No set of incoming assets between block %d and %d won the jackpot", Math.max(0, height - frequency + 1), height);
@@ -105,7 +124,7 @@ public class Jackpot extends AbstractContract {
         BlockResponse block = GetBlockCall.create().height(height).getBlock();
         GetBlockchainTransactionsCall getBlockchainTransactionsResponse = GetBlockchainTransactionsCall.create(chainId).
                 timestamp(block.getTimestamp()).
-                account(context.getConfig().getAccountRs()).
+                account(contractAccount).
                 executedOnly(true).
                 type(2).subtype(1);
         List<TransactionResponse> transactionList = getBlockchainTransactionsResponse.getTransactions();
@@ -179,11 +198,13 @@ public class Jackpot extends AbstractContract {
     public JO processRequest(RequestContext context) {
         context.logInfoMessage("CONTRACT: Jackpot: received API request.");
 
-        int frequency = 30;
-        int confirmationTime = 2;
-        String collectionRs = "ARDOR-YDK2-LDGG-3QL8-3Z9JD";
+        Params params = context.getParams(Params.class);
+        int chainId = context.getParams(Params.class).chainId();
+        int frequency = context.getParams(Params.class).frequency();
+        String collectionRs = context.getParams(Params.class).collectionRs();
 
-        String jackount = context.getConfig().getAccountRs();
+        int confirmationTime = 2;
+        String jackount = context.getAccountRs();
 
         // call contract to request information
         JO response = GetBalanceCall.create(2).account(jackount).call();

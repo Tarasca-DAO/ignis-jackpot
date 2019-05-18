@@ -119,7 +119,7 @@ public class JackpotTest extends AbstractContractTest {
 
     @Test
     public void acceptSingleWinner(){
-        Logger.logDebugMessage("Test jackPotAccept()");
+        Logger.logDebugMessage("TEST:START - accept single winner ");
         JO jackParams = new JO();
         int contractFrequency = 4;
         int confirmationTime = 1;
@@ -180,6 +180,8 @@ public class JackpotTest extends AbstractContractTest {
 
         long diffBob = balanceBobAfter-balanceBobBefore;
         long diffAlice = balanceEmpty-balanceFull;
+
+        Logger.logDebugMessage("TEST acceptSingleWinner: RESULTS diffBob: %d, diffAlice: %d, jackpotBalance: %d",diffBob,diffAlice,balanceEmpty);
 
         Assert.assertTrue( balanceEmpty<10); // 10 ignis tolerance for fees..
         Assert.assertTrue( abs(diffBob + diffAlice)<10); // 10 ignis tolerance for fees..
