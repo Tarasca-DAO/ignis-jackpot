@@ -273,9 +273,9 @@ public class JackpotTest extends AbstractContractTest {
     }
 
 
-/*    @Test
- *   public void emptyPotRejectWinner(){
- *       Assert.assertTrue(false);
- *   }
- */
+    /*    @Test
+     *   public void emptyPotRejectWinner(){
+     *       Assert.assertTrue(false);
+     *   }
+     */
 }
