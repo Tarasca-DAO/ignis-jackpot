@@ -18,9 +18,7 @@ import nxt.http.responses.BlockResponse;
 import nxt.http.responses.TransactionResponse;
 import org.json.simple.JSONArray;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Jackpot extends AbstractContract {
@@ -46,18 +44,27 @@ public class Jackpot extends AbstractContract {
                 context.logInfoMessage("CONTRACT: Jackpot: Incoming payments between block %d and %d, now checking against collection reqs", Math.max(0, height - frequency + 1), height);
                 Set<String> senders = getUniqueSenders(payments);
                 context.logInfoMessage("CONTRACT: Jackpot: getUniqueSenders(): " + senders.toString());
-                List<String> winners = senders.stream().filter(sender -> confirmJackpotForSender(context, sender, context.getAccount(), collectionAssets, payments)).collect(Collectors.toList());
+                Map<String, Integer> winners = new HashMap<String, Integer>();
+                for(String sender : senders){
+                    int winnerJackpots = confirmJackpotsForSender(context, sender, context.getAccount(), collectionAssets, payments);
+                    winners.put(sender,winnerJackpots);
+                }
                 context.logInfoMessage("CONTRACT: Jackpot: confirmJackpotForSender() Winners: " + winners.toString());
                 long balance;
-                if (winners.size() > 0) {
+                int winnersSize = 0;
+                for (Map.Entry mapElement : winners.entrySet()) {
+                    int value = (int)mapElement.getValue();
+                    winnersSize += value;
+                }
+                if (winnersSize > 0) {
                     JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
                     balance = response.getLong("balanceNQT");
                     long fee = ChildChain.IGNIS.ONE_COIN;
-                    long price = (balance - fee * winners.size()) / winners.size();
-                    winners.forEach(winner -> {
+                    long price = (balance - fee * winnersSize) / winnersSize;
+                    winners.forEach((winner,jackpots) -> {
                         context.logInfoMessage("CONTRACT: Jackpot: Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
-                        SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price).feeNQT(fee);
-                        context.logInfoMessage("CONTRACT: Jackpot: Send Prize: %d Ignis to %s", price, winner);
+                        SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price*jackpots).feeNQT(fee);
+                        context.logInfoMessage("CONTRACT: Jackpot: Send Prize: %d Ignis to %s", price*jackpots, winner);
                         context.createTransaction(sendMoneyCall);
                     });
                     context.logInfoMessage("CONTRACT: Jackpot: finished, exiting.");
@@ -104,6 +111,25 @@ public class Jackpot extends AbstractContract {
             context.logInfoMessage("CONTRACT: confirmJackpotForSender(): Checking for collection(Asset)Id: %s", assetId);
             return transactionList.stream().filter((payment) -> payment.getAttachmentJson().getString("asset").equals(assetId) && payment.getSender().equals(sender) && payment.getRecipient().equals(recipient)).toArray().length > 0;
         });
+    }
+
+    private int confirmJackpotsForSender(AbstractContractContext context, String sender, String recipient, List<JO> collectionAssets, List<TransactionResponse> transactionList) {
+        int minAsset = 0;
+        if (confirmJackpotForSender(context, sender, recipient, collectionAssets, transactionList)){
+            for (int i=0;i<collectionAssets.size();i++){
+                String assetId = collectionAssets.get(i).getString("asset");
+                int assetQNT = 0;
+                for (int j=0; j < transactionList.size(); j++){
+                    if(transactionList.get(j).getAttachmentJson().getString("asset").equals(assetId) && transactionList.get(j).getSender().equals(sender) && transactionList.get(j).getRecipient().equals(recipient)){
+                        String assetQuantity = transactionList.get(j).getAttachmentJson().getString("quantityQNT");
+                        assetQNT = assetQNT + Integer.valueOf(assetQuantity);
+                    }
+                }
+                context.logInfoMessage("CONTRACT: multipleParticipation(): Checking for collection(Asset)Id: %s, quantity: %d", assetId, assetQNT);
+                if (minAsset > assetQNT || i == 0) { minAsset = assetQNT; }
+            }
+        }
+        return minAsset;
     }
 
     public JO processRequest(RequestContext context) {
