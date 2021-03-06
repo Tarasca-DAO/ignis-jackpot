@@ -3,6 +3,9 @@ package com.jelurida.ardor.contracts;
 import nxt.addons.JA;
 import nxt.addons.JO;
 import nxt.http.APICall;
+import nxt.http.callers.GetAssetsByIssuerCall;
+import nxt.http.callers.TriggerContractByRequestCall;
+import nxt.http.callers.GetBalanceCall;
 import nxt.util.Logger;
 import org.junit.Assert;
 import org.junit.Test;
@@ -31,10 +34,7 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
 
         // call contract to request information
-        APICall apiCall = new APICall.Builder("triggerContractByRequest").
-                param("contractName", "Jackpot").
-                build();
-        JO contractResponse = new JO(apiCall.invoke());
+        JO contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
 
         Assert.assertEquals(contractResponse.getInt("collectionSize"),collectionSize);
         Assert.assertEquals(contractResponse.getString("jackpotAccountRs"),ALICE.getRsAccount());
@@ -58,22 +58,19 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
 
-        APICall apiCallFull = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",ALICE.getRsAccount()).
-                build();
-        JO responseFull = new JO(apiCallFull.invoke());
+        JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallBobBefore = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",BOB.getRsAccount()).
-                build();
-        JO responseBobBefore = new JO(apiCallBobBefore.invoke());
+        JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
 
 
-        JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
+        //JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
+        //sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
+
+        JO response = GetAssetsByIssuerCall.create().account(CHUCK.getRsAccount()).call();
+        JA outerArray = response.getArray("assets");
+        JA collectionAssets = outerArray.getArray(0);
         sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
 
         generateBlock();
@@ -85,7 +82,7 @@ public class JackpotTest extends AbstractContractTest {
             notAllAssets.add(collectionAssets.get(i));
         }
 
-        //send all assets to contract, expectation is JACKPOT!
+        //send not all assets to contract, expectation is jackpot will reject BOB!
         sendAssets(notAllAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"to Contract ALICE");
 
         generateBlock();
@@ -94,27 +91,21 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
         generateBlock();
 
-        APICall apiCallEmpty = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",ALICE.getRsAccount()).
-                build();
-        JO responseEmpty = new JO(apiCallEmpty.invoke());
+        JO responseEmpty = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceEmpty = Long.parseLong((String) responseEmpty.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallBobAfter = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",BOB.getRsAccount()).
-                build();
-        JO responseBobAfter = new JO(apiCallBobAfter.invoke());
+        JO responseBobAfter = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobAfter = Long.parseLong((String) responseBobAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
-
 
         long diffBob = balanceBobAfter-balanceBobBefore;
         long diffAlice = balanceEmpty-balanceFull;
 
+        Logger.logDebugMessage("TEST:CHECK RESULTS - reject winner incomplete TX ");
         // nothing shouldve happened
         Assert.assertTrue( balanceEmpty==balanceFull);
         Assert.assertTrue( balanceBobAfter==balanceBobBefore-notAllAssets.size()); //this assumes 1 Ignis fee!
+
+        Logger.logDebugMessage("TEST:STOP - reject winner incomplete TX ");
     }
 
     @Test
@@ -133,22 +124,16 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
 
-        APICall apiCallFull = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",ALICE.getRsAccount()).
-                build();
-        JO responseFull = new JO(apiCallFull.invoke());
+        JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallBobBefore = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",BOB.getRsAccount()).
-                build();
-        JO responseBobBefore = new JO(apiCallBobBefore.invoke());
+        JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
 
 
-        JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
+        JO response = GetAssetsByIssuerCall.create().account(CHUCK.getRsAccount()).call();
+        JA outerArray = response.getArray("assets");
+        JA collectionAssets = outerArray.getArray(0);
         sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
 
         generateBlock();
@@ -163,20 +148,11 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
         generateBlock();
 
-        APICall apiCallEmpty = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",ALICE.getRsAccount()).
-                build();
-        JO responseEmpty = new JO(apiCallEmpty.invoke());
+        JO responseEmpty = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceEmpty = Long.parseLong((String) responseEmpty.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallBobAfter = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",BOB.getRsAccount()).
-                build();
-        JO responseBobAfter = new JO(apiCallBobAfter.invoke());
+        JO responseBobAfter = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobAfter = Long.parseLong((String) responseBobAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
-
 
         long diffBob = balanceBobAfter-balanceBobBefore;
         long diffAlice = balanceEmpty-balanceFull;
@@ -203,29 +179,18 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
 
-        APICall apiCallFull = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",ALICE.getRsAccount()).
-                build();
-        JO responseFull = new JO(apiCallFull.invoke());
+        JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallBobBefore = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",BOB.getRsAccount()).
-                build();
-        APICall apiCallDaveBefore = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",DAVE.getRsAccount()).
-                build();
-        JO responseBobBefore = new JO(apiCallBobBefore.invoke());
+        JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        JO responseDaveBefore = new JO(apiCallDaveBefore.invoke());
+        JO responseDaveBefore = GetBalanceCall.create(IGNIS.getId()).account(DAVE.getRsAccount()).call();
         long balanceDaveBefore = Long.parseLong((String) responseDaveBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-
-        JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
+        JO response = GetAssetsByIssuerCall.create().account(CHUCK.getRsAccount()).call();
+        JA outerArray = response.getArray("assets");
+        JA collectionAssets = outerArray.getArray(0);
         sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
         sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),DAVE.getRsAccount(),"to Dave");
 
@@ -241,27 +206,14 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
         generateBlock();
 
-        APICall apiCallEmpty = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",ALICE.getRsAccount()).
-                build();
-        JO responseEmpty = new JO(apiCallEmpty.invoke());
+        JO responseEmpty = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceEmpty = Long.parseLong((String) responseEmpty.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallBobAfter = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",BOB.getRsAccount()).
-                build();
-        JO responseBobAfter = new JO(apiCallBobAfter.invoke());
+        JO responseBobAfter = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobAfter = Long.parseLong((String) responseBobAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        APICall apiCallDaveAfter = new APICall.Builder("getBalance").
-                param("chain", 2).
-                param("account",DAVE.getRsAccount()).
-                build();
-        JO responseDaveAfter = new JO(apiCallDaveAfter.invoke());
+        JO responseDaveAfter = GetBalanceCall.create(IGNIS.getId()).account(DAVE.getRsAccount()).call();
         long balanceDaveAfter = Long.parseLong((String) responseDaveAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
-
 
         long diffBob = balanceBobAfter-balanceBobBefore;
         long diffDave = balanceDaveAfter-balanceDaveBefore;

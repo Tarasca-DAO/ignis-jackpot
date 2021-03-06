@@ -5,18 +5,12 @@ import nxt.addons.JA;
 import nxt.addons.JO;
 import nxt.http.APICall;
 import nxt.http.TransferAsset;
-import nxt.http.callers.ApiSpec;
-import nxt.http.callers.GetCurrenciesByIssuerCall;
-import nxt.http.callers.IssueCurrencyCall;
-import nxt.http.callers.IssueAssetCall;
-import nxt.http.callers.TransferCurrencyCall;
-import nxt.http.callers.TransferAssetCall;
-import nxt.http.callers.SendMoneyCall;
-import nxt.http.callers.GetAccountAssetsCall;
+import nxt.http.callers.*;
 import nxt.util.Logger;
 import org.json.simple.JSONObject;
 
 import java.util.ListIterator;
+import java.lang.Object;
 
 import static nxt.BlockchainTest.generateBlock;
 import static nxt.blockchain.ChildChain.IGNIS;
@@ -36,9 +30,9 @@ public class TarascaTester {
     }
 
     public static JA getCollectionAssets(String account){
-        JO response = GetCurrenciesByIssuerCall.create().param("account",account).call();
-        JA schachtel = new JA(response.get("assets")); // Need to unbox another array
-        return new JA(schachtel.getObject(0));
+        JO response = GetAssetsByIssuerCall.create().param("account",account).call();
+        JA outerArray = response.getArray("assets");
+        return outerArray.getArray(0);
     }
 
     public static void initCurrency(String secretPhrase, String code, String name, String description, int supply) {
@@ -91,6 +85,8 @@ public class TarascaTester {
         while (itr.hasNext()) {
             JSONObject assetObj = (JSONObject) itr.next();
             JO asset = new JO(assetObj);
+            //JO asset = itr.next();
+            //JO asset = new JO(assetObj);
             String assetId = (String) asset.getString("asset");
             String msg = "send Asset: " + assetId;
             Logger.logMessage(msg);
