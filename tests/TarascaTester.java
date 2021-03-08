@@ -12,6 +12,7 @@ import org.json.simple.JSONObject;
 import java.util.ListIterator;
 import java.lang.Object;
 
+import static nxt.BlockchainTest.ALICE;
 import static nxt.BlockchainTest.generateBlock;
 import static nxt.blockchain.ChildChain.IGNIS;
 
@@ -22,51 +23,57 @@ public class TarascaTester {
     public static int cardsPerPack() {return 3;}
     public static int collectionSize() {return 8;}
 
-    public static JO getCollectionCurrency(String account){
-        JO response = GetCurrenciesByIssuerCall.create().param("account",account).call();
-        JA schachtel = new JA(response.get("currencies")); // Need to unbox another array
-        JA currency = new JA(schachtel.getObject(0));
+    public static JO getCollectionCurrency(){
+        JO response = GetCurrenciesByIssuerCall.create().param("account",ALICE.getRsAccount()).call();
+        JA schachtel = response.getArray("currencies"); // Need to unbox another array
+        JA currency = schachtel.getArray(0);
         return new JO(currency.getObject(0));
     }
 
-    public static JA getCollectionAssets(String account){
-        JO response = GetAssetsByIssuerCall.create().param("account",account).call();
+    public static JA getCollectionAssets(){
+        JO response = GetAssetsByIssuerCall.create().param("account",ALICE.getRsAccount()).call();
         JA outerArray = response.getArray("assets");
-        return outerArray.getArray(0);
+        JA assets = outerArray.getArray(0);
+        return assets;
     }
 
-    public static void initCurrency(String secretPhrase, String code, String name, String description, int supply) {
+
+    public static void initCollectionCurrency() {
         Logger.logMessage("create Currency.");
         JO response = IssueCurrencyCall.create(2).
-                secretPhrase(secretPhrase).
-                code(code).
-                name(name).
-                description(description).
-                initialSupplyQNT(supply).
-                maxSupplyQNT(supply).
+                secretPhrase(ALICE.getSecretPhrase()).
+                code("TOLLA").
+                name("Tarascolla").
+                description("exchangeable,useful").
+                initialSupplyQNT(100000).
+                maxSupplyQNT(100000).
                 type(1).decimals(2).
                 chain(IGNIS.getId()).
+                feeNQT(IGNIS.ONE_COIN*12).
                 call();
         generateBlock();
     }
 
-    public static void initCollection(String secretPhrase, int numAssets){
+    public static void initCollection(int numAssets){
+        Logger.logMessage("TarascaTester.initCollection(): from account: "+ ALICE.getRsAccount());
         for (int i=0; i<numAssets; i++){
             int q = 10000;
             if (i==0 | i==1){
                 q = 2500;
             }
-            Logger.logMessage("create Asset: "+i);
+            Logger.logMessage("TarascaTester.initCollection(): create Asset: Asset"+i);
             String name = String.format("Asset%s", i);
             String description = String.format("Asset Description %s", i);
-            IssueAssetCall.create(IGNIS.getId()).
-                    secretPhrase(secretPhrase).
+            JO response = IssueAssetCall.create(IGNIS.getId()).
+                    secretPhrase(ALICE.getSecretPhrase()).
                     description(description).
                     name(name).
                     quantityQNT(q).
                     decimals(0).
+                    feeNQT(IGNIS.ONE_COIN*100).
                     call();
             generateBlock();
+            //int j = i; // this is useless
         }
     }
 
@@ -89,14 +96,14 @@ public class TarascaTester {
             //JO asset = new JO(assetObj);
             String assetId = (String) asset.getString("asset");
             String msg = "send Asset: " + assetId;
-            Logger.logMessage(msg);
+            //Logger.logMessage(msg);
             JO response = TransferAssetCall.create(IGNIS.getId()).
                     asset(assetId).
                     recipient(receiverRs).
                     quantityQNT(quantityQNT).
                     secretPhrase(secretPhrase).
                     message(msg).
-                    feeNQT(IGNIS.ONE_COIN).
+                    feeNQT(IGNIS.ONE_COIN*100).
                     call();
         }
     }
@@ -107,7 +114,7 @@ public class TarascaTester {
         String message = messageJson.toJSONString();
         JO response = SendMoneyCall.create(IGNIS.getId()).
                 secretPhrase(secretPhrase).
-                recipient(BlockchainTest.ALICE.getRsAccount()).
+                recipient(ALICE.getRsAccount()).
                 amountNQT(amount).
                 messageIsPrunable(true).
                 message(message).
@@ -122,7 +129,7 @@ public class TarascaTester {
         messageJson.put("contract", contractName);
         String message = messageJson.toJSONString();
         JO response = SendMoneyCall.create(IGNIS.getId()).secretPhrase(secretPhrase).
-                recipient(BlockchainTest.ALICE.getRsAccount()).
+                recipient(ALICE.getRsAccount()).
                 amountNQT(numPacks*TarascaTester.priceIgnis()).
                 messageIsPrunable(true).
                 message(message).feeNQT(IGNIS.ONE_COIN).call();
@@ -135,10 +142,10 @@ public class TarascaTester {
         messageJson.put("contract", contractName);
         String message = messageJson.toJSONString();
 
-        JO coin = TarascaTester.getCollectionCurrency(BlockchainTest.CHUCK.getRsAccount());
+        JO coin = TarascaTester.getCollectionCurrency();
         JO response = TransferCurrencyCall.create(IGNIS.getId()).
                 currency(coin.getString("currency")).
-                recipient(BlockchainTest.ALICE.getRsAccount()).
+                recipient(ALICE.getRsAccount()).
                 unitsQNT(numPacks).
                 secretPhrase(secretPhrase).
                 messageIsPrunable(true).
@@ -151,7 +158,7 @@ public class TarascaTester {
 
     public static JO getAccountAssets(String account){
         JO response = GetAccountAssetsCall.create().account(account).call();
-        BlockchainTest.generateBlock();
+        //BlockchainTest.generateBlock();
         return response;
     }
 }
