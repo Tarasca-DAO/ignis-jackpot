@@ -27,34 +27,41 @@ public class Jackpot extends AbstractContract {
         String collectionRs = context.getParams(Params.class).collectionRs();
 
         int height = context.getHeight();
-        int modulo = (height-1) % frequency; // need to subtract 1 to get transition right (when jackpot block is reached)
-        int lastJackpotHeight = height - modulo;
-        int nextJackpotHeight = lastJackpotHeight + frequency;
+        int modulo = height % frequency; // need to subtract 1 to get transition right (when jackpot block is reached)
+        int nextJackpotHeight = height - modulo + frequency;
 
-        context.logInfoMessage("CONTRACT: Jackpot: run at height %d with params chainId %d, frequency: %d, collection: %s (lastJackpot: %d, nextJackpot: %d", height, chainId, frequency, collectionRs,lastJackpotHeight,nextJackpotHeight);
+        int lastJackpotHeight = 0;
+        if (modulo == 0 & height != 0) {
+            lastJackpotHeight =  (height-1) - ((height-1) % frequency); // freezes this value for the jackpot height
+        }
+        else {
+            lastJackpotHeight = height - modulo;
+        }
+
+        context.logInfoMessage("run with params: chainId: %d, frequency: %d, collectionRs: %s (at height: %d, lastJackpot: %d, nextJackpot: %d)", chainId, frequency, collectionRs,height,lastJackpotHeight,nextJackpotHeight);
         List<JO> collectionAssets = getCollectionAssets(collectionRs);
         List<TransactionResponse> payments = getPaymentTransactions(chainId, lastJackpotHeight+1, context.getAccount());
 
         if (payments.size() == 0) {
             JO returned = new JO();
-            returned.put("message", "CONTRACT: Jackpot: No incoming payments between block " + lastJackpotHeight + " and " + height + ", exit.");
+            returned.put("message", "No incoming payments between block " + (lastJackpotHeight+1) + " and " + height + ", exit.");
             return returned;
         } else {
-            context.logInfoMessage("CONTRACT: Jackpot: Incoming payments between block %d and %d, now checking against collection reqs", lastJackpotHeight, height);
+            context.logInfoMessage("Incoming payments between block %d and %d, now checking against collection reqs", lastJackpotHeight+1, height);
 
             Set<String> senders = getUniqueSenders(payments);
-            context.logInfoMessage("CONTRACT: Jackpot: getUniqueSenders(): " + senders.toString());
+            context.logInfoMessage("getUniqueSenders(): " + senders.toString());
 
             Map<String, Integer> winners = new HashMap<String, Integer>();
             for(String sender : senders){
                 int winnerJackpots = confirmJackpotsForSender(context, sender, context.getAccount(), collectionAssets, payments);
                 winners.put(sender,winnerJackpots);
             }
-            context.logInfoMessage("CONTRACT: Jackpot: confirmJackpotForSender() Winners: " + winners.toString());
+            context.logInfoMessage("confirmJackpotForSender() Winners: " + winners.toString());
 
             // check jackpot block or not
-            if (height % frequency != 0) {
-                context.logInfoMessage("CONTRACT: Jackpot: No jackpot block height, checking if messages need to be sent out");
+            if (modulo != 0) {
+                context.logInfoMessage("No jackpot block height, checking if messages need to be sent out");
                 BlockResponse block = GetBlockCall.create().height(height).getBlock();
                 int timestampLastJackpot = block.getTimestamp();
                 for (Map.Entry<String, Integer> entry : winners.entrySet()) {
@@ -80,7 +87,7 @@ public class Jackpot extends AbstractContract {
                     }
                 }
                 JO returned = new JO();
-                returned.put("message", "Jackpot: finish block at height " + height + ", next run at height " + nextJackpotHeight + ", no pay out, not a jackpot block height, exit.");
+                returned.put("message", "finish block at height " + height + ", next run at height " + nextJackpotHeight + ", no pay out, not a jackpot block height, exit.");
                 return returned;
             } else {
                 long balance;
@@ -95,16 +102,17 @@ public class Jackpot extends AbstractContract {
                     long fee = ChildChain.IGNIS.ONE_COIN;
                     long price = (balance - fee * winnersSize) / winnersSize;
                     winners.forEach((winner, jackpots) -> {
-                        context.logInfoMessage("CONTRACT: Jackpot: Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
+                        context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
                         SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee);
-                        context.logInfoMessage("CONTRACT: Jackpot: Send Prize: %d Ignis to %s", price * jackpots, winner);
+                        context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
                         context.createTransaction(sendMoneyCall);
                     });
-                    context.logInfoMessage("CONTRACT: Jackpot: finished, exiting.");
+                    context.logInfoMessage("finished, exiting.");
                     return context.getResponse();
                 } else {
-                    context.logInfoMessage("CONTRACT: Jackpot: No set of incoming assets between block %d and %d won the jackpot", Math.max(0, height - frequency + 1), height);
-                    return new JO();
+                    JO returned = new JO();
+                    returned.put("message", "No set of incoming assets between block " + (lastJackpotHeight+1) + " and " + height + " won the jackpot, exit.");
+                    return returned;
                 }
             }
         }
@@ -141,7 +149,7 @@ public class Jackpot extends AbstractContract {
     private boolean confirmJackpotForSender(AbstractContractContext context, String sender, String recipient, List<JO> collectionAssets, List<TransactionResponse> transactionList) {
         return collectionAssets.stream().allMatch(asset -> {
             String assetId = asset.getString("asset");
-            context.logInfoMessage("CONTRACT: confirmJackpotForSender(): Checking for collection(Asset)Id: %s", assetId);
+            context.logInfoMessage("confirmJackpotForSender(): Checking for collection(Asset)Id: %s", assetId);
             return transactionList.stream().filter((payment) -> payment.getAttachmentJson().getString("asset").equals(assetId) && payment.getSender().equals(sender) && payment.getRecipient().equals(recipient)).toArray().length > 0;
         });
     }
@@ -158,7 +166,7 @@ public class Jackpot extends AbstractContract {
                         assetQNT = assetQNT + Integer.valueOf(assetQuantity);
                     }
                 }
-                context.logInfoMessage("CONTRACT: multipleParticipation(): Checking for collection(Asset)Id: %s, quantity: %d", assetId, assetQNT);
+                context.logInfoMessage("multipleParticipation(): Checking for collection(Asset)Id: %s, quantity: %d", assetId, assetQNT);
                 if (minAsset > assetQNT || i == 0) { minAsset = assetQNT; }
             }
         }
@@ -166,7 +174,7 @@ public class Jackpot extends AbstractContract {
     }
 
     public JO processRequest(RequestContext context) {
-        context.logInfoMessage("CONTRACT: Jackpot: received API request.");
+        context.logInfoMessage("received API request.");
         int frequency = context.getParams(Params.class).frequency();
         String collectionRs = context.getParams(Params.class).collectionRs();
         int confirmationTime = 2;
