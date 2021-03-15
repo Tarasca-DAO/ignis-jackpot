@@ -29,9 +29,8 @@ public class JackpotTest extends AbstractContractTest {
 
         initCollection(collectionSize);
 
-        String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
-
         generateBlock();
+        String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
 
         // call contract to request information
         JO contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
@@ -54,16 +53,11 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("confirmationTime",confirmationTime);
         initCollection(collectionSize);
 
+        generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
 
-        generateBlock();
-
-        //JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
-        //sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
-
         Logger.logDebugMessage("TEST: rejectWinnerIncompleteTx(): Prepare accounts");
-        //JA collectionAssets = TarascaTester.getCollectionAssets();
-        //collectionAssets.stream().forEach(a -> Logger.logDebugMessage("TEST: asset from collection: ",a.toString()));
+
         JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
         JA collectionAssets = response.getArray("assets").getArray(0);
         sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
@@ -126,16 +120,11 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("confirmationTime",confirmationTime);
         initCollection(collectionSize);
 
+        generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
 
-        generateBlock();
-
-        //JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
-        //sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
-
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Prepare accounts");
-        //JA collectionAssets = TarascaTester.getCollectionAssets();
-        //collectionAssets.stream().forEach(a -> Logger.logDebugMessage("TEST: asset from collection: ",a.toString()));
+
         JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
         JA collectionAssets = response.getArray("assets").getArray(0);
         sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
@@ -194,16 +183,11 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("confirmationTime",confirmationTime);
         initCollection(collectionSize);
 
+        generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
 
-        generateBlock();
-
-        //JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
-        //sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
-
         Logger.logDebugMessage("TEST: dividePriceByTwo(): Prepare accounts");
-        //JA collectionAssets = TarascaTester.getCollectionAssets();
-        //collectionAssets.stream().forEach(a -> Logger.logDebugMessage("TEST: asset from collection: ",a.toString()));
+
         JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
         JA collectionAssets = response.getArray("assets").getArray(0);
         sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
@@ -277,9 +261,8 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("confirmationTime",confirmationTime);
         initCollection(collectionSize);
 
-        String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
-
         generateBlock();
+        String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Prepare accounts");
         JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
@@ -295,11 +278,6 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Start playing");
 
-        /*JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
-        long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
-
-        JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
-        long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;*/
 
         JA notAllAssets = new JA();
         for (int i=0;i<collectionAssets.size()-1;i++){
@@ -389,16 +367,11 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("confirmationTime",confirmationTime);
         initCollection(collectionSize);
 
+        generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
 
-        generateBlock();
-
-        //JA collectionAssets = TarascaTester.getCollectionAssets(CHUCK.getRsAccount());
-        //sendAssets(collectionAssets,3,CHUCK.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
-
         Logger.logDebugMessage("TEST: multipleParticipationSplitPot(): Prepare accounts");
-        //JA collectionAssets = TarascaTester.getCollectionAssets();
-        //collectionAssets.stream().forEach(a -> Logger.logDebugMessage("TEST: asset from collection: ",a.toString()));
+
         JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
         JA collectionAssets = response.getArray("assets").getArray(0);
         sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
@@ -444,13 +417,28 @@ public class JackpotTest extends AbstractContractTest {
         JO responseDaveAfter = GetBalanceCall.create(IGNIS.getId()).account(DAVE.getRsAccount()).call();
         long balanceDaveAfter = Long.parseLong((String) responseDaveAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
 
-        long diffBob = balanceBobAfter-balanceBobBefore;
-        long diffDave = balanceDaveAfter-balanceDaveBefore;
+        //long diffBob = balanceBobAfter-balanceBobBefore;
+        //long diffDave = balanceDaveAfter-balanceDaveBefore;
         long diffAlice = balanceEmpty-balanceFull;
 
+        // TODO: add halfing of the jackpot
+        long jackTotal = abs(diffAlice);
+        long twoWins = jackTotal*2/3;
+        long oneWin = jackTotal*1/3;
+
+        long expectedBalanceBob = balanceBobBefore + twoWins  -600; // 300 ignis for the fees (2 participation)
+        long expectedBalanceDave = balanceDaveBefore + oneWin -300; // 300 ignis for the fees
+
+        // Make sure Jackpot account is nearly empty
+
         Assert.assertTrue( balanceEmpty<10); // 10 ignis tolerance for fees..
-        Assert.assertTrue( abs(diffBob + (diffAlice+600)*2/3)<10); // 10 ignis tolerance for fees..
-        Assert.assertTrue( abs(diffDave+ (diffAlice+600)*1/3)<10);
+
+        // Assert bob won the two thirds
+        //Assert.assertTrue( abs(diffBob -300 + (diffAlice+600)*2/3)<10); // 10 ignis tolerance for fees..
+        Assert.assertTrue(abs(balanceBobAfter - expectedBalanceBob)<10);
+        // Assert dave won one third
+        //Assert.assertTrue( abs(diffDave-300 + (diffAlice+600)*1/3)<10);
+        Assert.assertTrue(abs(balanceDaveAfter - expectedBalanceDave)<10);
 
         //Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
         Logger.logDebugMessage("TEST: multipleParticipationSplitPot(): Done");
