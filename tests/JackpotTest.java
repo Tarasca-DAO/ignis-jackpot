@@ -118,6 +118,7 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("frequency",contractFrequency);
         jackParams.put("collectionRs",ALICE.getRsAccount());
         jackParams.put("confirmationTime",confirmationTime);
+        jackParams.put("jackpotIsHalfBalance",true);
         initCollection(collectionSize);
 
         generateBlock();
@@ -138,6 +139,7 @@ public class JackpotTest extends AbstractContractTest {
 
         JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
         long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
+        long expectedJackpot = balanceFull/2;
 
         JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
         long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
@@ -164,7 +166,8 @@ public class JackpotTest extends AbstractContractTest {
         // nothing shouldve happened
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Asserting that ALICE's balance changed");
         //Assert.assertTrue( balanceEmpty==balanceFull);
-        Assert.assertTrue( balanceEmpty<10); // 10 ignis tolerance for fees..
+        Assert.assertTrue( (balanceFull - expectedJackpot - balanceEmpty)<10); // 10 ignis tolerance for fees..
+        Assert.assertTrue((balanceEmpty - balanceFull/2) < 10);
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Asserting that Bobs balance change like Alices.. ");
         Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
 
@@ -286,7 +289,7 @@ public class JackpotTest extends AbstractContractTest {
 
         //send not all assets to contract, expectation is jackpot will reject BOB!
         JO participationResponse = GetBlockCall.create().call();
-        int participationHeight = participationResponse.getInt("height");
+        long participationBlockTimestamp = participationResponse.getInt("timestamp");
 
         sendAssets(notAllAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"Bob to Contract ALICE");
         sendAssets(collectionAssets,1,DAVE.getSecretPhrase(),ALICE.getRsAccount(),"Dave to Contract ALICE");
@@ -295,18 +298,19 @@ public class JackpotTest extends AbstractContractTest {
         // Compose the message
         JO current = GetBlockCall.create().call();
         int currentHeight = current.getInt("height");
-        JO message = new JO();
-        message.put("contract", "Jackpot");
-        message.put("currentHeight",currentHeight);
-        message.put("jackpotHeight",contractFrequency);//simplified, only works for the first round.
-        message.put("participationConfirmed", true);
-        JO msgresponse = SendMessageCall.create(IGNIS.getId()).
+        JO expectedMessage = new JO();
+        expectedMessage.put("contract", "Jackpot");
+        expectedMessage.put("currentHeight",currentHeight);
+        expectedMessage.put("jackpotHeight",contractFrequency);//simplified, only works for the first round.
+        expectedMessage.put("participationConfirmed", true);
+        //Logger.logDebugMessage(message.toJSONString());
+       /* JO msgresponse = SendMessageCall.create(IGNIS.getId()).
                 secretPhrase(ALICE.getSecretPhrase()).
                 message(message.toJSONString()).
                 messageIsPrunable(true).
                 recipient(DAVE.getRsAccount()).
-                feeNQT(IGNIS.ONE_COIN*(long)0.5).
-                call();
+                feeNQT(IGNIS.ONE_COIN*(long)5).
+                call();*/
 
         generateBlock();
         generateBlock();
@@ -316,7 +320,7 @@ public class JackpotTest extends AbstractContractTest {
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Evaluate results");
 
-        BlockResponse block = GetBlockCall.create().height(3).getBlock(); //TODO this is sketchy
+/*        BlockResponse block = GetBlockCall.create().height(3).getBlock(); //TODO fix height selection
         GetBlockchainTransactionsCall.
                 create(IGNIS.getId()).
                 timestamp(block.getTimestamp()).
@@ -330,30 +334,31 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting that a complete participation results in a message to recipient");
         current = GetBlockCall.create().call();
         currentHeight = current.getInt("height");
-        int lastJackpotHeight = currentHeight - (currentHeight % contractFrequency);
-        JO messages = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
-        JA PrunableMessages = messages.getArray("prunableMessages");
+        int lastJackpotHeight = currentHeight - (currentHeight % contractFrequency);*/
 
-        //  Assert message is send after participation
-        JO Msg = PrunableMessages.get(0);
-        int messageHeight = Msg.getInt("currentHeight");
-        Assert.assertTrue(participationHeight<messageHeight);
-        // TODO Assert 1
-        // TODO Assert 2
+        JO messagesToBob = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(BOB.getRsAccount()).call();
+        JO messagesToDave = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(DAVE.getRsAccount()).call();
+
+        //JA PrunableMessages = messages.getArray("prunableMessages");
+        // Assert message is send after participation
+        // JO Msg = PrunableMessages.get(0);
+        // long messageBlockTimestamp = Msg.getLong("blockTimestamp");
+        // Assert.assertTrue(participationBlockTimestamp<messageBlockTimestamp);
+
         // assert: correct recipient, message content
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting message content");
+        //JO MsgContent = GetPrunableMessageCall.create(2).transactionFullHash(Msg.getString("transaction")).call();
         // TODO Assert 4
         // assert that no message is sent for incomplete participation
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting that an incomplete participation results in no message to recipient");
         // TODO Assert 3
 
+        //TODO this test is not done yet!
+        Assert.assertTrue(false);
+
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Done");
     }
 
-    @Test
-    public void dontSendForPreviousRound(){
-        Assert.assertTrue(false);
-    }
 
     @Test
     public void multipleParticipationSplitPot(){

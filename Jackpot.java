@@ -22,6 +22,7 @@ import static nxt.blockchain.ChildChain.IGNIS;
 public class Jackpot extends AbstractContract {
 
     public JO processBlock(BlockContext context) {
+        boolean jackpotIsHalfBalance = context.getParams(Params.class).jackpotIsHalfBalance();
         int chainId = context.getParams(Params.class).chainId();
         int frequency = context.getParams(Params.class).frequency();
         String collectionRs = context.getParams(Params.class).collectionRs();
@@ -37,6 +38,12 @@ public class Jackpot extends AbstractContract {
         else {
             lastJackpotHeight = height - modulo;
         }
+
+        JO message = new JO();
+        message.put("currentHeight",height);
+        message.put("nextJackpotHeight",nextJackpotHeight);//simplified, only works for the first round.
+        message.put("participationConfirmed", false);
+        message.put("thisIsSendMoneyCall",false);
 
         context.logInfoMessage("run with params: chainId: %d, frequency: %d, collectionRs: %s (at height: %d, lastJackpot: %d, nextJackpot: %d)", chainId, frequency, collectionRs,height,lastJackpotHeight,nextJackpotHeight);
         List<JO> collectionAssets = getCollectionAssets(collectionRs);
@@ -62,35 +69,41 @@ public class Jackpot extends AbstractContract {
             // check jackpot block or not
             if (modulo != 0) {
                 context.logInfoMessage("No jackpot block height, checking if messages need to be sent out");
-                BlockResponse block = GetBlockCall.create().height(height).getBlock();
+                BlockResponse block = GetBlockCall.create().height(lastJackpotHeight+1).getBlock();
                 int timestampLastJackpot = block.getTimestamp();
                 for (Map.Entry<String, Integer> entry : winners.entrySet()) {
                     String winner = entry.getKey();
                     Integer numWins = entry.getValue();
-                    JO response = GetPrunableMessagesCall.create(2).account(context.getAccountRs()).otherAccount(winner).timestamp(timestampLastJackpot).call();
+                    //JO response = GetPrunableMessagesCall.create(2).account(context.getAccountRs()).otherAccount(winner).timestamp(timestampLastJackpot).call();
+                    String ownAccountRs = context.getAccountRs();
+                    JO response = GetPrunableMessagesCall.create(2).account(ownAccountRs).call();
                     JA msgs = response.getArray("prunableMessages");
                     context.logInfoMessage("Winner " + winner + ": found " + msgs.size() + " msgs for " + numWins+ " confirmed participations.");
                     //TODO think do we need to read the messages? maybe not for the first version
                     if (numWins > msgs.size()) {
                         // TODO: add checking for already sent messages...
-                        context.logInfoMessage("sending message");
-                        JO message = new JO();
-                        message.put("contract", "Jackpot");
-                        message.put("currentHeight",height);
-                        message.put("jackpotHeight",nextJackpotHeight);//simplified, only works for the first round.
-                        message.put("participationConfirmed", true);
-                        JO msgresponse = SendMessageCall.create(2).
+                        context.logInfoMessage("sending message for participation");
+                        message.put("participationConfirmed",true);
+                        long fee = IGNIS.ONE_COIN;
+                        SendMessageCall sendMessageCall = SendMessageCall.create(2).
                                 message(message.toJSONString()).
                                 messageIsPrunable(true).
-                                recipient(winner).
-                                call();
+                                feeNQT(fee).
+                                recipient(winner);
+                        context.createTransaction(sendMessageCall);
+                    }
+                    else if (numWins == msgs.size()){
+                        context.logInfoMessage("messages found for all participations, or none");
+                    }
+                    else {
+                        context.logInfoMessage("where am I now");
                     }
                 }
                 JO returned = new JO();
                 returned.put("message", "finish block at height " + height + ", next run at height " + nextJackpotHeight + ", no pay out, not a jackpot block height, exit.");
                 return returned;
             } else {
-                long balance;
+                long balance=0;
                 int winnersSize = 0;
                 for (Map.Entry mapElement : winners.entrySet()) {
                     int value = (int) mapElement.getValue();
@@ -98,14 +111,18 @@ public class Jackpot extends AbstractContract {
                 }
                 if (winnersSize > 0) {
                     JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
-                    balance = response.getLong("balanceNQT");
+                    balance = jackpotIsHalfBalance ? response.getLong("balanceNQT")/2 : response.getLong("balanceNQT");
                     long fee = ChildChain.IGNIS.ONE_COIN;
                     long price = (balance - fee * winnersSize) / winnersSize;
+                    message.put("participationConfirmed",false);
+                    message.put("thisIsSendMoneyCall",true);
                     winners.forEach((winner, jackpots) -> {
-                        context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
-                        SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee);
-                        context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
-                        context.createTransaction(sendMoneyCall);
+                        if (jackpots != 0) {
+                            context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
+                            SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString());
+                            context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
+                            context.createTransaction(sendMoneyCall);
+                        }
                     });
                     context.logInfoMessage("finished, exiting.");
                     return context.getResponse();
@@ -175,21 +192,22 @@ public class Jackpot extends AbstractContract {
 
     public JO processRequest(RequestContext context) {
         context.logInfoMessage("received API request.");
+        boolean jackpotIsHalfBalance = context.getParams(Params.class).jackpotIsHalfBalance();
         int frequency = context.getParams(Params.class).frequency();
         String collectionRs = context.getParams(Params.class).collectionRs();
-        int confirmationTime = 2;
-        String jackount = context.getAccountRs();
-        JO response = GetBalanceCall.create(2).account(jackount).call();
+
+        JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
         long balance = Long.parseLong((String)response.get("balanceNQT"));
+
         List<JO> assets = this.getCollectionAssets(collectionRs);
         int numAssets = assets.size();
+
         JO retresponse = new JO();
         retresponse.put("jackpotBalanceNQT", balance);
-        retresponse.put("jackpotAccountRs", jackount);
         retresponse.put("collectionAccountRs", collectionRs);
         retresponse.put("collectionSize", numAssets);
         retresponse.put("jackpotRunFrequency", frequency);
-        retresponse.put("jackpotConfirmationTime", confirmationTime);
+        retresponse.put("jackpotIsHalfBalance", jackpotIsHalfBalance);
         return retresponse;
     }
 
@@ -209,5 +227,8 @@ public class Jackpot extends AbstractContract {
         default String collectionRs() {
             return "ARDOR-YDK2-LDGG-3QL8-3Z9JD";
         }
+
+        @ContractSetupParameter
+        default boolean jackpotIsHalfBalance() {return false;}
     }
 }
