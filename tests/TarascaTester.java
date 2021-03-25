@@ -18,7 +18,7 @@ import static nxt.blockchain.ChildChain.IGNIS;
 
 public class TarascaTester {
 
-    public static long priceIgnis() {return 26*IGNIS.ONE_COIN;}
+    public static long priceIgnis() {return 99;}
     public static long priceGiftz() {return 1;}
     public static int cardsPerPack() {return 3;}
     public static int collectionSize() {return 8;}
@@ -130,7 +130,7 @@ public class TarascaTester {
         String message = messageJson.toJSONString();
         JO response = SendMoneyCall.create(IGNIS.getId()).secretPhrase(secretPhrase).
                 recipient(ALICE.getRsAccount()).
-                amountNQT(numPacks*TarascaTester.priceIgnis()).
+                amountNQT(numPacks*TarascaTester.priceIgnis()*IGNIS.ONE_COIN).
                 messageIsPrunable(true).
                 message(message).feeNQT(IGNIS.ONE_COIN).call();
         BlockchainTest.generateBlock();

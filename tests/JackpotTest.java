@@ -320,41 +320,23 @@ public class JackpotTest extends AbstractContractTest {
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Evaluate results");
 
-/*        BlockResponse block = GetBlockCall.create().height(3).getBlock(); //TODO fix height selection
-        GetBlockchainTransactionsCall.
-                create(IGNIS.getId()).
-                timestamp(block.getTimestamp()).
-                account(ALICE.getRsAccount()).
-                executedOnly(true).
-                type(2).
-                subtype(1).
-                call();
 
-        // assert that in the next cycle after a player has a complete participation, a message is sent
-        Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting that a complete participation results in a message to recipient");
-        current = GetBlockCall.create().call();
-        currentHeight = current.getInt("height");
-        int lastJackpotHeight = currentHeight - (currentHeight % contractFrequency);*/
 
         JO messagesToBob = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(BOB.getRsAccount()).call();
         JO messagesToDave = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(DAVE.getRsAccount()).call();
 
-        //JA PrunableMessages = messages.getArray("prunableMessages");
-        // Assert message is send after participation
-        // JO Msg = PrunableMessages.get(0);
-        // long messageBlockTimestamp = Msg.getLong("blockTimestamp");
-        // Assert.assertTrue(participationBlockTimestamp<messageBlockTimestamp);
 
         // assert: correct recipient, message content
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting message content");
-        //JO MsgContent = GetPrunableMessageCall.create(2).transactionFullHash(Msg.getString("transaction")).call();
-        // TODO Assert 4
+
+        JA davesMsg = messagesToDave.getArray("prunableMessages");
+        Assert.assertTrue(messagesToDave.getArray("prunableMessages").size()==2);
         // assert that no message is sent for incomplete participation
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting that an incomplete participation results in no message to recipient");
-        // TODO Assert 3
+        Assert.assertTrue(messagesToBob.getArray("prunableMessages").size()==0);
 
-        //TODO this test is not done yet!
-        Assert.assertTrue(false);
+        //Assert.assertTrue(messagesToDave);
+        // TODO: assert that the messages contain the correct keywords.
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Done");
     }

@@ -13,6 +13,7 @@ import nxt.http.callers.*;
 import nxt.http.responses.BlockResponse;
 import nxt.http.responses.TransactionResponse;
 import org.json.simple.JSONArray;
+import org.junit.Assert;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,7 +43,7 @@ public class Jackpot extends AbstractContract {
         JO message = new JO();
         message.put("currentHeight",height);
         message.put("nextJackpotHeight",nextJackpotHeight);//simplified, only works for the first round.
-        message.put("participationConfirmed", false);
+        message.put("participationConfirmed",false);
         message.put("thisIsSendMoneyCall",false);
 
         context.logInfoMessage("run with params: chainId: %d, frequency: %d, collectionRs: %s (at height: %d, lastJackpot: %d, nextJackpot: %d)", chainId, frequency, collectionRs,height,lastJackpotHeight,nextJackpotHeight);
@@ -74,14 +75,14 @@ public class Jackpot extends AbstractContract {
                 for (Map.Entry<String, Integer> entry : winners.entrySet()) {
                     String winner = entry.getKey();
                     Integer numWins = entry.getValue();
-                    //JO response = GetPrunableMessagesCall.create(2).account(context.getAccountRs()).otherAccount(winner).timestamp(timestampLastJackpot).call();
+
                     String ownAccountRs = context.getAccountRs();
-                    JO response = GetPrunableMessagesCall.create(2).account(ownAccountRs).call();
+                    JO response = GetPrunableMessagesCall.create(2).account(context.getAccountRs()).otherAccount(winner).timestamp(timestampLastJackpot).call();
                     JA msgs = response.getArray("prunableMessages");
+
                     context.logInfoMessage("Winner " + winner + ": found " + msgs.size() + " msgs for " + numWins+ " confirmed participations.");
-                    //TODO think do we need to read the messages? maybe not for the first version
+
                     if (numWins > msgs.size()) {
-                        // TODO: add checking for already sent messages...
                         context.logInfoMessage("sending message for participation");
                         message.put("participationConfirmed",true);
                         long fee = IGNIS.ONE_COIN;
@@ -96,12 +97,13 @@ public class Jackpot extends AbstractContract {
                         context.logInfoMessage("messages found for all participations, or none");
                     }
                     else {
-                        context.logInfoMessage("where am I now");
+                        context.logInfoMessage("unused branch");
+                        Assert.assertTrue(false);
                     }
                 }
-                JO returned = new JO();
-                returned.put("message", "finish block at height " + height + ", next run at height " + nextJackpotHeight + ", no pay out, not a jackpot block height, exit.");
-                return returned;
+                //JO returned = new JO();
+                //returned.put("message", "finish block at height " + height + ", next run at height " + nextJackpotHeight + ", no pay out, not a jackpot block height, exit.");
+                return context.getResponse();
             } else {
                 long balance=0;
                 int winnersSize = 0;
