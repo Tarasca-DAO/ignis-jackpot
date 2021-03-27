@@ -58,15 +58,19 @@ public class TarascaTester {
         Logger.logMessage("TarascaTester.initCollection(): from account: "+ ALICE.getRsAccount());
         for (int i=0; i<numAssets; i++){
             int q = 10000;
+            String rarity = "common";
             if (i==0 | i==1){
                 q = 2500;
+                rarity = "rare";
             }
             Logger.logMessage("TarascaTester.initCollection(): create Asset: Asset"+i);
             String name = String.format("Asset%s", i);
-            String description = String.format("Asset Description %s", i);
+            JO description = new JO();
+            description.put("description",String.format("this is Asset %s description",i));
+            description.put("rarity",rarity);
             JO response = IssueAssetCall.create(IGNIS.getId()).
                     secretPhrase(ALICE.getSecretPhrase()).
-                    description(description).
+                    description(description.toJSONString()).
                     name(name).
                     quantityQNT(q).
                     decimals(0).

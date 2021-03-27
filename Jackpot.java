@@ -42,7 +42,7 @@ public class Jackpot extends AbstractContract {
 
         JO message = new JO();
         message.put("currentHeight",height);
-        message.put("nextJackpotHeight",nextJackpotHeight);//simplified, only works for the first round.
+        message.put("nextJackpotHeight",nextJackpotHeight);
         message.put("participationConfirmed",false);
         message.put("thisIsSendMoneyCall",false);
 
@@ -79,10 +79,20 @@ public class Jackpot extends AbstractContract {
                     String ownAccountRs = context.getAccountRs();
                     JO response = GetPrunableMessagesCall.create(2).account(context.getAccountRs()).otherAccount(winner).timestamp(timestampLastJackpot).call();
                     JA msgs = response.getArray("prunableMessages");
+                    List<JO> participationMsgs = msgs.objects().stream().filter(
+                            (msg) -> {
+                                JO messageBody = JO.parse(msg.getString("message"));
+                                String senderRS = msg.getString("senderRS");
+                                String submittedBy = messageBody.getString("submittedBy");
+                                if ( submittedBy != null && submittedBy.equals(context.getContractName()) && senderRS != null && senderRS.equals(context.getAccountRs()))
+                                    return true;
+                                else
+                                    return false;
+                            }).collect(Collectors.toList());
 
-                    context.logInfoMessage("Winner " + winner + ": found " + msgs.size() + " msgs for " + numWins+ " confirmed participations.");
+                    context.logInfoMessage("Winner " + winner + ": found " + participationMsgs.size() + " msgs for " + numWins+ " confirmed participations.");
 
-                    if (numWins > msgs.size()) {
+                    if (numWins > participationMsgs.size()) {
                         context.logInfoMessage("sending message for participation");
                         message.put("participationConfirmed",true);
                         long fee = IGNIS.ONE_COIN;
@@ -93,7 +103,7 @@ public class Jackpot extends AbstractContract {
                                 recipient(winner);
                         context.createTransaction(sendMessageCall);
                     }
-                    else if (numWins == msgs.size()){
+                    else if (numWins == participationMsgs.size()){
                         context.logInfoMessage("messages found for all participations, or none");
                     }
                     else {

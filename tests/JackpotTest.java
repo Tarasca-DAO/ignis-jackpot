@@ -10,6 +10,9 @@ import nxt.util.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import static com.jelurida.ardor.contracts.TarascaTester.initCollection;
 import static com.jelurida.ardor.contracts.TarascaTester.sendAssets;
 import static java.lang.Math.abs;
@@ -281,6 +284,31 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Start playing");
 
+        // Contract sends a few money calls with messages attached, provoking the branch wins < number of messages of the contract (line 99)
+        JO messageJson = new JO();
+        messageJson.put("contact", "This message shall be ignored");
+        SendMoneyCall.create(IGNIS.getId()).secretPhrase(ALICE.getSecretPhrase()).
+                recipient(DAVE.getRsAccount()).
+                amountNQT(IGNIS.ONE_COIN).
+                messageIsPrunable(true).
+                message(messageJson.toJSONString()).
+                feeNQT(IGNIS.ONE_COIN).
+                call();
+        SendMoneyCall.create(IGNIS.getId()).secretPhrase(ALICE.getSecretPhrase()).
+                recipient(DAVE.getRsAccount()).
+                amountNQT(IGNIS.ONE_COIN).
+                messageIsPrunable(true).
+                message(messageJson.toJSONString()).
+                feeNQT(IGNIS.ONE_COIN).
+                call();
+        SendMoneyCall.create(IGNIS.getId()).secretPhrase(ALICE.getSecretPhrase()).
+                recipient(DAVE.getRsAccount()).
+                amountNQT(IGNIS.ONE_COIN).
+                messageIsPrunable(true).
+                message(messageJson.toJSONString()).
+                feeNQT(IGNIS.ONE_COIN).
+                call();
+        generateBlock();
 
         JA notAllAssets = new JA();
         for (int i=0;i<collectionAssets.size()-1;i++){
@@ -292,25 +320,10 @@ public class JackpotTest extends AbstractContractTest {
         long participationBlockTimestamp = participationResponse.getInt("timestamp");
 
         sendAssets(notAllAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"Bob to Contract ALICE");
-        sendAssets(collectionAssets,1,DAVE.getSecretPhrase(),ALICE.getRsAccount(),"Dave to Contract ALICE");
+        sendAssets(collectionAssets,2,DAVE.getSecretPhrase(),ALICE.getRsAccount(),"Dave to Contract ALICE");
 
-        //mock up:
-        // Compose the message
-        JO current = GetBlockCall.create().call();
-        int currentHeight = current.getInt("height");
-        JO expectedMessage = new JO();
-        expectedMessage.put("contract", "Jackpot");
-        expectedMessage.put("currentHeight",currentHeight);
-        expectedMessage.put("jackpotHeight",contractFrequency);//simplified, only works for the first round.
-        expectedMessage.put("participationConfirmed", true);
-        //Logger.logDebugMessage(message.toJSONString());
-       /* JO msgresponse = SendMessageCall.create(IGNIS.getId()).
-                secretPhrase(ALICE.getSecretPhrase()).
-                message(message.toJSONString()).
-                messageIsPrunable(true).
-                recipient(DAVE.getRsAccount()).
-                feeNQT(IGNIS.ONE_COIN*(long)5).
-                call();*/
+
+        //expectedMessage.put("participationConfirmed", true);
 
         generateBlock();
         generateBlock();
@@ -321,22 +334,30 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Evaluate results");
 
 
-
-        JO messagesToBob = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(BOB.getRsAccount()).call();
-        JO messagesToDave = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(DAVE.getRsAccount()).call();
-
-
         // assert: correct recipient, message content
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting message content");
+        JO messagesToDave = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(DAVE.getRsAccount()).call();
+        List<JO> jackpotMessagesToDave = messagesToDave.getArray("prunableMessages").objects().stream().filter(
+                (msg) -> {
+                    JO messageBody = JO.parse(msg.getString("message"));
+                    String senderRS = msg.getString("senderRS");
+                    String submittedBy = messageBody.getString("submittedBy");
+                    if ( submittedBy != null && submittedBy.equals(jackName) && senderRS != null && senderRS.equals(ALICE.getRsAccount()))
+                        return true;
+                    else
+                        return false;
+                }).collect(Collectors.toList());
+        Assert.assertTrue(jackpotMessagesToDave.size()==2);
 
-        JA davesMsg = messagesToDave.getArray("prunableMessages");
-        Assert.assertTrue(messagesToDave.getArray("prunableMessages").size()==2);
-        // assert that no message is sent for incomplete participation
+
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Asserting that an incomplete participation results in no message to recipient");
-        Assert.assertTrue(messagesToBob.getArray("prunableMessages").size()==0);
-
-        //Assert.assertTrue(messagesToDave);
-        // TODO: assert that the messages contain the correct keywords.
+        JO messagesToBob = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).otherAccount(BOB.getRsAccount()).call();
+        List<JO> jackpotMessagesToBob = messagesToBob.getArray("prunableMessages").objects().stream().filter(msg ->
+                msg.getString("senderRs").equals(ALICE.getRsAccount()) &
+                        msg.getString("submittedBy").equals(jackName) &
+                        msg.getBoolean("participationConfirmed")
+        ).collect(Collectors.toList());
+        Assert.assertTrue(jackpotMessagesToBob.size()==0);
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Done");
     }
