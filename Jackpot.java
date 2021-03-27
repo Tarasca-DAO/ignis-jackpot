@@ -97,12 +97,9 @@ public class Jackpot extends AbstractContract {
                         context.logInfoMessage("messages found for all participations, or none");
                     }
                     else {
-                        context.logInfoMessage("unused branch");
-                        Assert.assertTrue(false);
+                        context.logInfoMessage("contract-severe: more messages than wins!");
                     }
                 }
-                //JO returned = new JO();
-                //returned.put("message", "finish block at height " + height + ", next run at height " + nextJackpotHeight + ", no pay out, not a jackpot block height, exit.");
                 return context.getResponse();
             } else {
                 long balance=0;
