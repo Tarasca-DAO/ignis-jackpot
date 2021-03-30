@@ -43,8 +43,6 @@ public class Jackpot extends AbstractContract {
         JO message = new JO();
         message.put("currentHeight",height);
         message.put("nextJackpotHeight",nextJackpotHeight);
-        message.put("participationConfirmed",false);
-        message.put("thisIsSendMoneyCall",false);
 
         context.logInfoMessage("run with params: chainId: %d, frequency: %d, collectionRs: %s (at height: %d, lastJackpot: %d, nextJackpot: %d)", chainId, frequency, collectionRs,height,lastJackpotHeight,nextJackpotHeight);
         List<JO> collectionAssets = getCollectionAssets(collectionRs);
@@ -84,7 +82,8 @@ public class Jackpot extends AbstractContract {
                                 JO messageBody = JO.parse(msg.getString("message"));
                                 String senderRS = msg.getString("senderRS");
                                 String submittedBy = messageBody.getString("submittedBy");
-                                if ( submittedBy != null && submittedBy.equals(context.getContractName()) && senderRS != null && senderRS.equals(context.getAccountRs()))
+                                String reason = messageBody.getString("reason");
+                                if ( submittedBy != null && submittedBy.equals(context.getContractName()) && senderRS != null && senderRS.equals(context.getAccountRs()) && reason != null && reason.equals("confirmParticipation"))
                                     return true;
                                 else
                                     return false;
@@ -94,10 +93,11 @@ public class Jackpot extends AbstractContract {
 
                     if (numWins > participationMsgs.size()) {
                         context.logInfoMessage("sending message for participation");
-                        message.put("participationConfirmed",true);
+                        message.put("reason","confirmParticipation");
                         long fee = IGNIS.ONE_COIN;
                         SendMessageCall sendMessageCall = SendMessageCall.create(2).
                                 message(message.toJSONString()).
+                                messageIsText(true).
                                 messageIsPrunable(true).
                                 feeNQT(fee).
                                 recipient(winner);
@@ -108,6 +108,7 @@ public class Jackpot extends AbstractContract {
                     }
                     else {
                         context.logInfoMessage("contract-severe: more messages than wins!");
+                        context.logInfoMessage("messages found: " + participationMsgs.toString());
                     }
                 }
                 return context.getResponse();
@@ -123,12 +124,11 @@ public class Jackpot extends AbstractContract {
                     balance = jackpotIsHalfBalance ? response.getLong("balanceNQT")/2 : response.getLong("balanceNQT");
                     long fee = ChildChain.IGNIS.ONE_COIN;
                     long price = (balance - fee * winnersSize) / winnersSize;
-                    message.put("participationConfirmed",false);
-                    message.put("thisIsSendMoneyCall",true);
+                    message.put("reason","sendPrizeToWinner");
                     winners.forEach((winner, jackpots) -> {
                         if (jackpots != 0) {
                             context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
-                            SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString());
+                            SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true);
                             context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
                             context.createTransaction(sendMoneyCall);
                         }
@@ -175,7 +175,7 @@ public class Jackpot extends AbstractContract {
     private boolean confirmJackpotForSender(AbstractContractContext context, String sender, String recipient, List<JO> collectionAssets, List<TransactionResponse> transactionList) {
         return collectionAssets.stream().allMatch(asset -> {
             String assetId = asset.getString("asset");
-            context.logInfoMessage("confirmJackpotForSender(): Checking for collection(Asset)Id: %s", assetId);
+            //context.logInfoMessage("confirmJackpotForSender(): Checking for collection(Asset)Id: %s", assetId);
             return transactionList.stream().filter((payment) -> payment.getAttachmentJson().getString("asset").equals(assetId) && payment.getSender().equals(sender) && payment.getRecipient().equals(recipient)).toArray().length > 0;
         });
     }
@@ -192,7 +192,7 @@ public class Jackpot extends AbstractContract {
                         assetQNT = assetQNT + Integer.valueOf(assetQuantity);
                     }
                 }
-                context.logInfoMessage("multipleParticipation(): Checking for collection(Asset)Id: %s, quantity: %d", assetId, assetQNT);
+                //context.logInfoMessage("multipleParticipation(): Checking for collection(Asset)Id: %s, quantity: %d", assetId, assetQNT);
                 if (minAsset > assetQNT || i == 0) { minAsset = assetQNT; }
             }
         }
