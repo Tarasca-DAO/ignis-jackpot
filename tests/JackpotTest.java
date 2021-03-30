@@ -259,7 +259,7 @@ public class JackpotTest extends AbstractContractTest {
     public void sendMessageForWinner(){
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Start");
         JO jackParams = new JO();
-        int contractFrequency = 9;
+        int contractFrequency = 12;
         int confirmationTime = 1;
         int collectionSize = 3;
         jackParams.put("frequency",contractFrequency);
@@ -325,9 +325,11 @@ public class JackpotTest extends AbstractContractTest {
 
         //expectedMessage.put("participationConfirmed", true);
 
+        generateBlock(); // height = 8
         generateBlock();
         generateBlock();
         generateBlock();
+        generateBlock(); // height 12
         generateBlock();
         generateBlock();
 
@@ -342,7 +344,8 @@ public class JackpotTest extends AbstractContractTest {
                     JO messageBody = JO.parse(msg.getString("message"));
                     String senderRS = msg.getString("senderRS");
                     String submittedBy = messageBody.getString("submittedBy");
-                    if ( submittedBy != null && submittedBy.equals(jackName) && senderRS != null && senderRS.equals(ALICE.getRsAccount()))
+                    String reason = messageBody.getString("reason");
+                    if ( submittedBy != null && submittedBy.equals(jackName) && senderRS != null && senderRS.equals(ALICE.getRsAccount()) && reason != null && reason.equals("confirmParticipation"))
                         return true;
                     else
                         return false;
