@@ -95,13 +95,16 @@ public class Jackpot extends AbstractContract {
                         context.logInfoMessage("sending message for participation");
                         message.put("reason","confirmParticipation");
                         long fee = IGNIS.ONE_COIN;
-                        SendMessageCall sendMessageCall = SendMessageCall.create(2).
-                                message(message.toJSONString()).
-                                messageIsText(true).
-                                messageIsPrunable(true).
-                                feeNQT(fee).
-                                recipient(winner);
-                        context.createTransaction(sendMessageCall);
+                        JO unconfTx = GetUnconfirmedTransactionsCall.create(2).includeWaitingTransactions(true).account(context.getAccountRs()).account(winner).call();
+                        if (unconfTx.getArray("unconfirmedTransactions").size() == 0 && unconfTx.getArray("waitingTransactions").size() == 0) {
+                            SendMessageCall sendMessageCall = SendMessageCall.create(2).
+                                    message(message.toJSONString()).
+                                    messageIsText(true).
+                                    messageIsPrunable(true).
+                                    feeNQT(fee).
+                                    recipient(winner);
+                            context.createTransaction(sendMessageCall);
+                        }
                     }
                     else if (numWins == participationMsgs.size()){
                         context.logInfoMessage("messages found for all participations, or none");
