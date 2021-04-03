@@ -13,12 +13,12 @@ import nxt.http.callers.*;
 import nxt.http.responses.BlockResponse;
 import nxt.http.responses.TransactionResponse;
 import org.json.simple.JSONArray;
-import org.junit.Assert;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static nxt.blockchain.ChildChain.IGNIS;
+
 
 public class Jackpot extends AbstractContract {
 
@@ -74,7 +74,6 @@ public class Jackpot extends AbstractContract {
                     String winner = entry.getKey();
                     Integer numWins = entry.getValue();
 
-                    String ownAccountRs = context.getAccountRs();
                     JO response = GetPrunableMessagesCall.create(2).account(context.getAccountRs()).otherAccount(winner).timestamp(timestampLastJackpot).call();
                     JA msgs = response.getArray("prunableMessages");
                     List<JO> participationMsgs = msgs.objects().stream().filter(
