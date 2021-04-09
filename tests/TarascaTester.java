@@ -1,6 +1,8 @@
 package com.jelurida.ardor.contracts;
 
+import com.sun.corba.se.impl.ior.WireObjectKeyTemplate;
 import nxt.BlockchainTest;
+import nxt.Tester;
 import nxt.addons.JA;
 import nxt.addons.JO;
 import nxt.http.APICall;
@@ -16,12 +18,14 @@ import static nxt.BlockchainTest.ALICE;
 import static nxt.BlockchainTest.generateBlock;
 import static nxt.blockchain.ChildChain.IGNIS;
 
+
 public class TarascaTester {
 
     public static long priceIgnis() {return 99;}
     public static long priceGiftz() {return 1;}
     public static int cardsPerPack() {return 3;}
     public static int collectionSize() {return 8;}
+
 
     public static JO getCollectionCurrency(){
         JO response = GetCurrenciesByIssuerCall.create().param("account",ALICE.getRsAccount()).call();
@@ -107,8 +111,9 @@ public class TarascaTester {
                     quantityQNT(quantityQNT).
                     secretPhrase(secretPhrase).
                     message(msg).
-                    feeNQT(IGNIS.ONE_COIN*100).
+                    feeNQT(IGNIS.ONE_COIN).
                     call();
+            response.toJSONString();
         }
     }
 
@@ -165,4 +170,5 @@ public class TarascaTester {
         //BlockchainTest.generateBlock();
         return response;
     }
+
 }

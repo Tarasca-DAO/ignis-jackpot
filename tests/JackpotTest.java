@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import static com.jelurida.ardor.contracts.TarascaTester.initCollection;
 import static com.jelurida.ardor.contracts.TarascaTester.sendAssets;
+import com.jelurida.ardor.contracts.TarascaPlayers;
 import static java.lang.Math.abs;
 import static nxt.blockchain.ChildChain.IGNIS;
 
@@ -106,7 +107,7 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: rejectWinnerIncompleteTx(): Asserting that ALICE's balance didn't change");
         Assert.assertTrue( balanceEmpty==balanceFull);
         Logger.logDebugMessage("TEST: rejectWinnerIncompleteTx(): Asserting that Bobs balance didnt change except for the fees");
-        Assert.assertTrue( balanceBobAfter==balanceBobBefore- (notAllAssets.size()*100)); //this assumes 100 Ignis fee!
+        Assert.assertTrue( balanceBobAfter==balanceBobBefore- (notAllAssets.size())); //this assumes 1 Ignis fee!
 
         Logger.logDebugMessage("TEST: rejectWinnerIncompleteTx(): Done");
     }
@@ -172,7 +173,7 @@ public class JackpotTest extends AbstractContractTest {
         Assert.assertTrue( (balanceFull - expectedJackpot - balanceEmpty)<10); // 10 ignis tolerance for fees..
         Assert.assertTrue((balanceEmpty - balanceFull/2) < 10);
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Asserting that Bobs balance change like Alices.. ");
-        Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
+        Assert.assertTrue( abs(diffBob + diffAlice )<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
 
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Done");
     }
@@ -243,8 +244,8 @@ public class JackpotTest extends AbstractContractTest {
         long diffAlice = balanceEmpty-balanceFull;
 
         Assert.assertTrue( balanceEmpty<10); // 10 ignis tolerance for fees..
-        Assert.assertTrue( abs(diffBob + (diffAlice+600)/2)<10); // 10 ignis tolerance for fees..
-        Assert.assertTrue( abs(diffDave+ (diffAlice+600)/2)<10);
+        Assert.assertTrue( abs(diffBob + (diffAlice)/2)<10); // 10 ignis tolerance for fees..
+        Assert.assertTrue( abs(diffDave+ (diffAlice)/2)<10);
 
         //Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
         Logger.logDebugMessage("TEST: dividePriceByTwo(): Done");
@@ -437,8 +438,8 @@ public class JackpotTest extends AbstractContractTest {
         long twoWins = jackTotal*2/3;
         long oneWin = jackTotal*1/3;
 
-        long expectedBalanceBob = balanceBobBefore + twoWins  -600; // 300 ignis for the fees (2 participation)
-        long expectedBalanceDave = balanceDaveBefore + oneWin -300; // 300 ignis for the fees
+        long expectedBalanceBob = balanceBobBefore + twoWins  -6; // 3 ignis for the fees (2 participation)
+        long expectedBalanceDave = balanceDaveBefore + oneWin -3; // 3 ignis for the fees
 
         // Make sure Jackpot account is nearly empty
 
@@ -453,5 +454,130 @@ public class JackpotTest extends AbstractContractTest {
 
         //Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
         Logger.logDebugMessage("TEST: multipleParticipationSplitPot(): Done");
+    }
+
+    @Test
+    public void morePlayers(){
+        Logger.logDebugMessage("TEST: morePlayers(): Start");
+        JO jackParams = new JO();
+        int contractFrequency = 16;
+        int confirmationTime = 1;
+        int collectionSize = 3;
+        jackParams.put("frequency",contractFrequency);
+        jackParams.put("collectionRs",ALICE.getRsAccount());
+        jackParams.put("confirmationTime",confirmationTime);
+        initCollection(collectionSize);
+        generateBlock();
+        TarascaPlayers.initMorePlayers();
+        String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+
+        Logger.logDebugMessage("TEST: morePlayers(): Prepare accounts");
+
+        JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
+        JA collectionAssets = response.getArray("assets").getArray(0);
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),DAVE.getRsAccount(),"to Dave");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),CHUCK.getRsAccount(),"to Chuck");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),RIKER.getRsAccount(),"to riker");
+
+        Logger.logDebugMessage("TEST: morePlayers(): Sending to the new players");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.PALHEIRO.getRsAccount(),"to palheiro");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.SHUGO.getRsAccount(),"to shugo");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.MALNEMARK.getRsAccount(),"to malnemark");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.WIRE.getRsAccount(),"to wire");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.SAZAN.getRsAccount(),"to sazan");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.TRE.getRsAccount(),"to tre");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),TarascaPlayers.SWIFT.getRsAccount(),"to swift");
+
+        Logger.logDebugMessage("TEST: Accounts");
+        Logger.logDebugMessage("TEST: Contract (Alice): "+ALICE.getRsAccount()+", numeric: "+ALICE.getAccount());
+        Logger.logDebugMessage("TEST: Player1  (Bob  ): "+BOB.getRsAccount()+", numeric: "+BOB.getAccount());
+        Logger.logDebugMessage("TEST: Player2  (Dave ): "+DAVE.getRsAccount()+", numeric: "+DAVE.getAccount());
+
+        generateBlock();
+        Logger.logDebugMessage("TEST: morePlayers(): Start playing");
+
+
+        long balanceFull = getBalance(ALICE.getRsAccount());
+        long balanceBobBefore = getBalance(BOB.getRsAccount());
+        long balanceDaveBefore = getBalance(DAVE.getRsAccount());
+        long balanceChuckBefore = getBalance(CHUCK.getRsAccount());
+        long balanceRikerBefore = getBalance(RIKER.getRsAccount());
+        long balancePalheiroBefore = getBalance(TarascaPlayers.PALHEIRO.getRsAccount());
+        long balanceShugoBefore = getBalance(TarascaPlayers.SHUGO.getRsAccount());
+        long balanceMalnemarkBefore = getBalance(TarascaPlayers.MALNEMARK.getRsAccount());
+        long balanceWireBefore = getBalance(TarascaPlayers.WIRE.getRsAccount());
+        long balanceSazanBefore = getBalance(TarascaPlayers.SAZAN.getRsAccount());
+        long balanceTreBefore = getBalance(TarascaPlayers.TRE.getRsAccount());
+        long balanceSwiftBefore = getBalance(TarascaPlayers.SWIFT.getRsAccount());
+
+
+        //send all assets to contract
+        sendAssets(collectionAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"from Bob to Contract ALICE");
+        sendAssets(collectionAssets,1,DAVE.getSecretPhrase(),ALICE.getRsAccount(),"from Dave to Contract ALICE");
+        sendAssets(collectionAssets,1,CHUCK.getSecretPhrase(),ALICE.getRsAccount(),"from Bob to Contract ALICE");
+        sendAssets(collectionAssets,1,RIKER.getSecretPhrase(),ALICE.getRsAccount(),"from Dave to Contract ALICE");
+        generateBlock();
+        Logger.logDebugMessage("TEST: morePlayers(): New players sending to contract");
+        sendAssets(collectionAssets,1,TarascaPlayers.MALNEMARK.getSecretPhrase(),ALICE.getRsAccount(),"from malnemark to Contract ALICE");
+        sendAssets(collectionAssets,1,TarascaPlayers.PALHEIRO.getSecretPhrase(),ALICE.getRsAccount(),"from palheiro to Contract ALICE");
+        sendAssets(collectionAssets,1,TarascaPlayers.SHUGO.getSecretPhrase(),ALICE.getRsAccount(),"from shugo to Contract ALICE");
+        generateBlock();
+        sendAssets(collectionAssets,1,TarascaPlayers.SAZAN.getSecretPhrase(),ALICE.getRsAccount(),"from sazan to Contract ALICE");
+        sendAssets(collectionAssets,1,TarascaPlayers.WIRE.getSecretPhrase(),ALICE.getRsAccount(),"from wire to Contract ALICE");
+        sendAssets(collectionAssets,1,TarascaPlayers.TRE.getSecretPhrase(),ALICE.getRsAccount(),"from tre to Contract ALICE");
+        sendAssets(collectionAssets,1,TarascaPlayers.SWIFT.getSecretPhrase(),ALICE.getRsAccount(),"from swift to Contract ALICE");
+        Logger.logDebugMessage("TEST: morePlayers(): New players sending to contract complete");
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        generateBlock();// somehwere here is block 16
+        generateBlock();
+        Logger.logDebugMessage("TEST: morePlayers(): Evaluate results");
+
+        long balanceEmpty = getBalance(ALICE.getRsAccount());
+        long balanceBobAfter = getBalance(BOB.getRsAccount());
+        long balanceDaveAfter = getBalance(DAVE.getRsAccount());
+        long balanceChuckAfter = getBalance(CHUCK.getRsAccount());
+        long balanceRikerAfter = getBalance(RIKER.getRsAccount());
+        long balancePalheiroAfter = getBalance(TarascaPlayers.PALHEIRO.getRsAccount());
+        long balanceShugoAfter = getBalance(TarascaPlayers.SHUGO.getRsAccount());
+        long balanceMalnemarkAfter = getBalance(TarascaPlayers.MALNEMARK.getRsAccount());
+        long balanceWireAfter = getBalance(TarascaPlayers.WIRE.getRsAccount());
+        long balanceSazanAfter = getBalance(TarascaPlayers.SAZAN.getRsAccount());
+        long balanceTreAfter = getBalance(TarascaPlayers.TRE.getRsAccount());
+        long balanceSwiftAfter = getBalance(TarascaPlayers.SWIFT.getRsAccount());
+
+
+        long diffAlice = balanceEmpty-balanceFull;
+
+        long jackTotal = abs(diffAlice);
+        long oneWin = jackTotal*1/11;
+
+        // Make sure Jackpot account is nearly empty
+        Assert.assertTrue( balanceEmpty<15); // 10 ignis tolerance for fees..
+
+        Assert.assertTrue(abs(balanceBobAfter - balanceBobBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceChuckAfter - balanceChuckBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceDaveAfter - balanceDaveBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceRikerAfter - balanceRikerBefore - oneWin) < 10);
+
+        Assert.assertTrue(abs(balanceMalnemarkAfter - balanceMalnemarkBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balancePalheiroAfter - balancePalheiroBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceShugoAfter - balanceShugoBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceSazanAfter - balanceSazanBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceWireAfter - balanceWireBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceTreAfter - balanceTreBefore - oneWin) < 10);
+        Assert.assertTrue(abs(balanceSwiftAfter - balanceSwiftBefore - oneWin) < 10);
+
+        Logger.logDebugMessage("TEST: morePlayers(): Done");
+    }
+
+    public static long getBalance(String accountRs) {
+        JO response = GetBalanceCall.create(IGNIS.getId()).account(accountRs).call();
+        return Long.parseLong((String) response.get("balanceNQT"))/IGNIS.ONE_COIN;
     }
 }
