@@ -28,6 +28,9 @@ public class Jackpot extends AbstractContract {
         int frequency = context.getParams(Params.class).frequency();
         String collectionRs = context.getParams(Params.class).collectionRs();
 
+        int DEADLINE = 180;
+        int MSGDEADLINE = 15;
+
         int height = context.getHeight();
         int modulo = height % frequency; // need to subtract 1 to get transition right (when jackpot block is reached)
         int nextJackpotHeight = height - modulo + frequency;
@@ -93,7 +96,7 @@ public class Jackpot extends AbstractContract {
                     if (numWins > participationMsgs.size()) {
                         context.logInfoMessage("sending message for participation");
                         message.put("reason","confirmParticipation");
-                        long fee = IGNIS.ONE_COIN;
+                        long fee = (long) (IGNIS.ONE_COIN*0.5);
                         JO unconfTx = GetUnconfirmedTransactionsCall.create(2).includeWaitingTransactions(true).account(context.getAccountRs()).account(winner).call();
                         if (unconfTx.getArray("unconfirmedTransactions").size() == 0 && unconfTx.getArray("waitingTransactions").size() == 0) {
                             SendMessageCall sendMessageCall = SendMessageCall.create(2).
@@ -101,7 +104,8 @@ public class Jackpot extends AbstractContract {
                                     messageIsText(true).
                                     messageIsPrunable(true).
                                     feeNQT(fee).
-                                    recipient(winner);
+                                    recipient(winner).
+                                    deadline(MSGDEADLINE);
                             context.createTransaction(sendMessageCall);
                         }
                     }
@@ -124,13 +128,13 @@ public class Jackpot extends AbstractContract {
                 if (winnersSize > 0) {
                     JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
                     balance = jackpotIsHalfBalance ? response.getLong("balanceNQT")/2 : response.getLong("balanceNQT");
-                    long fee = ChildChain.IGNIS.ONE_COIN;
+                    long fee = (long) (0.5*IGNIS.ONE_COIN);
                     long price = (balance - fee * winnersSize) / winnersSize;
                     message.put("reason","sendPrizeToWinner");
                     winners.forEach((winner, jackpots) -> {
                         if (jackpots != 0) {
                             context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
-                            SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true);
+                            SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true).deadline(DEADLINE);
                             context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
                             context.createTransaction(sendMoneyCall);
                         }
