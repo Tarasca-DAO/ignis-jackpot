@@ -1,4 +1,4 @@
-package com.jelurida.ardor.contracts;
+package org.tarasca.contracts;
 
 import com.sun.corba.se.impl.ior.WireObjectKeyTemplate;
 import nxt.BlockchainTest;
@@ -14,8 +14,7 @@ import org.json.simple.JSONObject;
 import java.util.ListIterator;
 import java.lang.Object;
 
-import static nxt.BlockchainTest.ALICE;
-import static nxt.BlockchainTest.generateBlock;
+import static nxt.BlockchainTest.*;
 import static nxt.blockchain.ChildChain.IGNIS;
 
 
@@ -41,6 +40,22 @@ public class TarascaTester {
         return assets;
     }
 
+    public static JO initReferralAsset(){
+        String name = String.format("REF");
+        String description = "This token provides the right to invite a new user to the Mythical Beings card collection, according to the rules established in mythicalbeings.io (+info in the FAQ).";
+        IssueAssetCall.create(IGNIS.getId()).
+                secretPhrase(DAVE.getSecretPhrase()).
+                description(description).
+                name(name).
+                quantityQNT(1000).
+                decimals(0).
+                feeNQT(IGNIS.ONE_COIN*100).
+                call();
+        generateBlock();
+        JO response = GetAssetsByIssuerCall.create().account(DAVE.getRsAccount()).call();
+
+        return response.getArray("assets").getArray(0).get(0);
+    }
 
     public static void initCollectionCurrency() {
         Logger.logMessage("create Currency.");

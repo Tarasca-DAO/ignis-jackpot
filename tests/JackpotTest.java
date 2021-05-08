@@ -1,4 +1,4 @@
-package com.jelurida.ardor.contracts;
+package org.tarasca.contracts;
 
 import nxt.addons.ContractRunner;
 import nxt.addons.JA;
@@ -6,6 +6,7 @@ import nxt.addons.JO;
 import nxt.http.APICall;
 import nxt.http.callers.*;
 import nxt.http.responses.BlockResponse;
+import com.jelurida.ardor.contracts.AbstractContractTest;
 import nxt.util.Logger;
 import org.junit.Assert;
 import org.junit.Test;
@@ -13,11 +14,11 @@ import org.junit.Test;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.jelurida.ardor.contracts.TarascaTester.initCollection;
-import static com.jelurida.ardor.contracts.TarascaTester.sendAssets;
-import com.jelurida.ardor.contracts.TarascaPlayers;
+import static org.tarasca.contracts.TarascaTester.*;
+import static org.tarasca.contracts.TarascaPlayers.*;
 import static java.lang.Math.abs;
 import static nxt.blockchain.ChildChain.IGNIS;
+import com.jelurida.ardor.contracts.ContractTestHelper;
 
 
 public class JackpotTest extends AbstractContractTest {

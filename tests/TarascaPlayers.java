@@ -1,4 +1,4 @@
-package com.jelurida.ardor.contracts;
+package org.tarasca.contracts;
 
 
 import nxt.BlockchainTest;
