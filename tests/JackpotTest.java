@@ -1,21 +1,19 @@
 package org.tarasca.contracts;
 
-import nxt.addons.ContractRunner;
+import com.jelurida.ardor.contracts.DistributedRandomNumberGenerator;
 import nxt.addons.JA;
 import nxt.addons.JO;
-import nxt.http.APICall;
 import nxt.http.callers.*;
-import nxt.http.responses.BlockResponse;
 import com.jelurida.ardor.contracts.AbstractContractTest;
 import nxt.util.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.tarasca.contracts.TarascaTester.*;
-import static org.tarasca.contracts.TarascaPlayers.*;
 import static java.lang.Math.abs;
 import static nxt.blockchain.ChildChain.IGNIS;
 import com.jelurida.ardor.contracts.ContractTestHelper;
@@ -36,7 +34,7 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
-
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
         // call contract to request information
         JO contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
 
@@ -60,6 +58,7 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
 
         Logger.logDebugMessage("TEST: rejectWinnerIncompleteTx(): Prepare accounts");
 
@@ -128,6 +127,7 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
 
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Prepare accounts");
 
@@ -176,6 +176,9 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Asserting that Bobs balance change like Alices.. ");
         Assert.assertTrue( abs(diffBob + diffAlice )<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
 
+        // two winners, both won once. maximum 1 card per winner (one participation)
+        checkTarascaCardMessage(1,1,1);
+
         Logger.logDebugMessage("TEST: acceptSingleWinner(): Done");
     }
 
@@ -193,6 +196,7 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
 
         Logger.logDebugMessage("TEST: dividePriceByTwo(): Prepare accounts");
 
@@ -248,6 +252,9 @@ public class JackpotTest extends AbstractContractTest {
         Assert.assertTrue( abs(diffBob + (diffAlice)/2)<10); // 10 ignis tolerance for fees..
         Assert.assertTrue( abs(diffDave+ (diffAlice)/2)<10);
 
+        // two winners, both won once. maximum 1 card per winner (one participation)
+        checkTarascaCardMessage(2,2,1);
+
         //Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
         Logger.logDebugMessage("TEST: dividePriceByTwo(): Done");
     }
@@ -261,7 +268,7 @@ public class JackpotTest extends AbstractContractTest {
     public void sendMessageForWinner(){
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Start");
         JO jackParams = new JO();
-        int contractFrequency = 12;
+        int contractFrequency = 15;
         int confirmationTime = 1;
         int collectionSize = 3;
         jackParams.put("frequency",contractFrequency);
@@ -269,8 +276,8 @@ public class JackpotTest extends AbstractContractTest {
         jackParams.put("confirmationTime",confirmationTime);
         initCollection(collectionSize);
 
-        generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Prepare accounts");
         JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
@@ -334,6 +341,8 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock(); // height 12
         generateBlock();
         generateBlock();
+        generateBlock();
+        generateBlock();
 
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Evaluate results");
 
@@ -364,6 +373,9 @@ public class JackpotTest extends AbstractContractTest {
         ).collect(Collectors.toList());
         Assert.assertTrue(jackpotMessagesToBob.size()==0);
 
+        // dave won twice, bob not at all. We have 3 cards but only send out two. both cards go to dave.
+        checkTarascaCardMessage(1,2,2);
+
         Logger.logDebugMessage("TEST: sendMessageForWinner(): Done");
     }
 
@@ -382,6 +394,7 @@ public class JackpotTest extends AbstractContractTest {
 
         generateBlock();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
 
         Logger.logDebugMessage("TEST: multipleParticipationSplitPot(): Prepare accounts");
 
@@ -453,6 +466,7 @@ public class JackpotTest extends AbstractContractTest {
         //Assert.assertTrue( abs(diffDave-300 + (diffAlice+600)*1/3)<10);
         Assert.assertTrue(abs(balanceDaveAfter - expectedBalanceDave)<10);
 
+        checkTarascaCardMessage(2,3,2);
         //Assert.assertTrue( abs(diffBob + diffAlice + 300)<10); // 10 ignis tolerance for fees.., 300 Ignis fees with Ardor V2.3.3
         Logger.logDebugMessage("TEST: multipleParticipationSplitPot(): Done");
     }
@@ -471,6 +485,7 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
         TarascaPlayers.initMorePlayers();
         String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
 
         Logger.logDebugMessage("TEST: morePlayers(): Prepare accounts");
 
@@ -580,5 +595,49 @@ public class JackpotTest extends AbstractContractTest {
     public static long getBalance(String accountRs) {
         JO response = GetBalanceCall.create(IGNIS.getId()).account(accountRs).call();
         return Long.parseLong((String) response.get("balanceNQT"))/IGNIS.ONE_COIN;
+    }
+
+    /*
+    *  function scans all messages, filters those send together with the price and analysis the tarasca card winner attribute "numTarascasWon".
+    *  It checks the amount of cards won, how many winners won at least one, and maximum number of cards of a single account.
+    * */
+    public static void checkTarascaCardMessage(int numWinners, int numCardsTotal, int numCardsPerWinnerMax){
+        JO messages = GetPrunableMessagesCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
+
+        List<JO> sendPrizeMessages = messages.getArray("prunableMessages").objects().stream().filter(msg -> {
+                JO messageBody = JO.parse(msg.getString("message"));
+                return (msg.getString("senderRS").equals(ALICE.getRsAccount()) &&
+                        messageBody.getString("reason") != null &&
+                        messageBody.getString("reason").equals("sendPrizeToWinner"));
+        }
+        ).collect(Collectors.toList());
+
+        // check amount of all cards won
+        AtomicInteger numCardsTotalObserved = new AtomicInteger();
+        sendPrizeMessages.forEach((msg) -> {
+            JO messageBody = JO.parse(msg.getString("message"));
+            Assert.assertTrue(messageBody.getString("reason").equals("sendPrizeToWinner"));
+            int currentValue = messageBody.getInt("numTarascasWon");
+            numCardsTotalObserved.addAndGet(currentValue);
+        });
+
+        // check number of winners
+        AtomicInteger numWinnersObserved = new AtomicInteger();
+        numWinnersObserved.set(sendPrizeMessages.size());
+
+        // check numCardsPerWinnerMax
+        AtomicInteger numCardsPerWinnerMaxObserved = new AtomicInteger();
+        sendPrizeMessages.forEach((msg) -> {
+            JO messageBody = JO.parse(msg.getString("message"));
+            Assert.assertTrue(messageBody.getString("reason").equals("sendPrizeToWinner"));
+            int currentValue = messageBody.getInt("numTarascasWon");
+            if (currentValue > numCardsPerWinnerMaxObserved.get()) {
+                numCardsPerWinnerMaxObserved.set(currentValue);
+            }
+        });
+
+        Assert.assertTrue(numWinners == numWinnersObserved.get());
+        Assert.assertTrue(numCardsTotal == numCardsTotalObserved.get());
+        Assert.assertTrue(numCardsPerWinnerMax == numCardsPerWinnerMaxObserved.get());
     }
 }

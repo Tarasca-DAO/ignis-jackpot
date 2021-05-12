@@ -1,19 +1,17 @@
 package org.tarasca.contracts;
 
-import nxt.addons.AbstractContract;
-import nxt.addons.AbstractContractContext;
-import nxt.addons.BlockContext;
-import nxt.addons.ContractParametersProvider;
-import nxt.addons.ContractSetupParameter;
-import nxt.addons.JA;
-import nxt.addons.JO;
-import nxt.addons.RequestContext;
+import nxt.addons.*;
 import nxt.blockchain.ChildChain;
+import nxt.crypto.Crypto;
 import nxt.http.callers.*;
 import nxt.http.responses.BlockResponse;
 import nxt.http.responses.TransactionResponse;
 import org.json.simple.JSONArray;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,6 +28,7 @@ public class Jackpot extends AbstractContract {
 
         int DEADLINE = 180;
         int MSGDEADLINE = 15;
+        int MAXNUMTARASCAS = 3;
 
         int height = context.getHeight();
         int modulo = height % frequency; // need to subtract 1 to get transition right (when jackpot block is reached)
@@ -94,11 +93,11 @@ public class Jackpot extends AbstractContract {
                     context.logInfoMessage("Winner " + winner + ": found " + participationMsgs.size() + " msgs for " + numWins+ " confirmed participations.");
 
                     if (numWins > participationMsgs.size()) {
-                        context.logInfoMessage("sending message for participation");
                         message.put("reason","confirmParticipation");
                         long fee = (long) (IGNIS.ONE_COIN*0.5);
                         JO unconfTx = GetUnconfirmedTransactionsCall.create(2).includeWaitingTransactions(true).account(context.getAccountRs()).account(winner).call();
                         if (unconfTx.getArray("unconfirmedTransactions").size() == 0 && unconfTx.getArray("waitingTransactions").size() == 0) {
+                            context.logInfoMessage("sending message for participation");
                             SendMessageCall sendMessageCall = SendMessageCall.create(2).
                                     message(message.toJSONString()).
                                     messageIsText(true).
@@ -107,6 +106,9 @@ public class Jackpot extends AbstractContract {
                                     recipient(winner).
                                     deadline(MSGDEADLINE);
                             context.createTransaction(sendMessageCall);
+                        }
+                        else {
+                            context.logInfoMessage("messaging interrupted due to unconfirmed transactions");
                         }
                     }
                     else if (numWins == participationMsgs.size()){
@@ -118,21 +120,58 @@ public class Jackpot extends AbstractContract {
                     }
                 }
                 return context.getResponse();
-            } else {
-                long balance=0;
+
+            }
+            else {
                 int winnersSize = 0;
                 for (Map.Entry mapElement : winners.entrySet()) {
                     int value = (int) mapElement.getValue();
                     winnersSize += value;
                 }
+
                 if (winnersSize > 0) {
+                    //init randomness for TC lottery
+                    initRandomness(context);
+                    ContractAndSetupParameters contractAndParameters = context.loadContract("DistributedRandomNumberGenerator");
+                    Contract<Map<String, Long>, String> distributedRandomNumberGenerator = contractAndParameters.getContract();
+                    DelegatedContext delegatedContext = new DelegatedContext(context, distributedRandomNumberGenerator.getClass().getName(), contractAndParameters.getParams());
+
+                    // type casting joy
+                    //final int winnersSizeFinal = winnersSize;
+                    Map<String,Long> winnersl = new HashMap<>();
+                    winners.forEach(
+                            (account,participations) -> {
+                                //long weight = (long)participations;
+                                winnersl.put(account, (long)participations);
+                            });
+
+                    // run TC lottery
+                    int cardsForDraw = Math.min(winnersSize,MAXNUMTARASCAS);
+                    Map<String,Integer> TcWinners = new HashMap<>();
+                    for(int i=0; i<cardsForDraw; i++) {
+                        String TcWinner = distributedRandomNumberGenerator.processInvocation(delegatedContext, winnersl);
+                        Integer curValue = TcWinners.putIfAbsent(TcWinner, 1);
+                        if (curValue != null) {
+                            TcWinners.put(TcWinner, curValue + 1);
+                        }
+                        //update winnersl to reduce the weight of the current winning account
+                        long oldWeight = winnersl.get(TcWinner);
+                        long newWeight = oldWeight >= (long)1.0 ? (long) (oldWeight - 1.0) : (long)0.0;
+                        winnersl.replace(TcWinner,oldWeight,newWeight);
+                    }
+
                     JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
+                    long balance=0;
                     balance = jackpotIsHalfBalance ? response.getLong("balanceNQT")/2 : response.getLong("balanceNQT");
+
                     long fee = (long) (0.5*IGNIS.ONE_COIN);
                     long price = (balance - fee * winnersSize) / winnersSize;
+
                     message.put("reason","sendPrizeToWinner");
                     winners.forEach((winner, jackpots) -> {
                         if (jackpots != 0) {
+                            Integer cards = TcWinners.get(winner) == null ? 0 : TcWinners.get(winner);
+                            message.put("numTarascasWon",cards);
                             context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
                             SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true).deadline(DEADLINE);
                             context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
@@ -141,7 +180,8 @@ public class Jackpot extends AbstractContract {
                     });
                     context.logInfoMessage("finished, exiting.");
                     return context.getResponse();
-                } else {
+                }
+                else {
                     JO returned = new JO();
                     returned.put("message", "No set of incoming assets between block " + (lastJackpotHeight+1) + " and " + height + " won the jackpot, exit.");
                     return returned;
@@ -204,6 +244,25 @@ public class Jackpot extends AbstractContract {
         }
         return minAsset;
     }
+
+    private void initRandomness(BlockContext context){
+        // load randomnumber generator
+        JO contractParameters = context.getContractRunnerConfigParams(getClass().getSimpleName());
+        String secretForRandomString = "0";
+        if(contractParameters.isExist("secretForRandomString")) {
+            secretForRandomString = contractParameters.getString("secretForRandomString");
+        }
+        MessageDigest digest = Crypto.sha256();
+        digest.update(secretForRandomString.getBytes(StandardCharsets.UTF_8));
+        digest.update(ByteBuffer.allocate(Long.BYTES).putLong(context.getBlock().getBlockId()).array());
+        context.initRandom(longLsbFromBytes(digest.digest()));
+    }
+
+    public static long longLsbFromBytes(byte[] bytes) {
+        BigInteger bi = new BigInteger(1, new byte[] {bytes[7], bytes[6], bytes[5], bytes[4], bytes[3], bytes[2], bytes[1], bytes[0]});
+        return bi.longValue();
+    }
+
 
     public JO processRequest(RequestContext context) {
         context.logInfoMessage("received API request.");
