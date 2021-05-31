@@ -57,6 +57,24 @@ public class TarascaTester {
         return response.getArray("assets").getArray(0).get(0);
     }
 
+    public static JO initSpecialCardAsset(Tester Issuer){
+        String name = String.format("Tarasca");
+        String description = "This is a special card asset, to be send individually";
+        JO response = IssueAssetCall.create(IGNIS.getId()).
+                secretPhrase(Issuer.getSecretPhrase()).
+                description(description).
+                name(name).
+                quantityQNT(1000).
+                decimals(0).
+                feeNQT(IGNIS.ONE_COIN*100).
+                call();
+        generateBlock();
+
+        //return response;
+        JO wtf = GetAssetsByIssuerCall.create().account(Issuer.getRsAccount()).call();
+        return wtf.getArray("assets").getArray(0).get(0);
+    }
+
     public static void initCollectionCurrency() {
         Logger.logMessage("create Currency.");
         JO response = IssueCurrencyCall.create(2).

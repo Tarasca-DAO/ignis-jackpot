@@ -28,7 +28,7 @@ public class Jackpot extends AbstractContract {
 
         int DEADLINE = 180;
         int MSGDEADLINE = 15;
-        int MAXNUMTARASCAS = 3;
+        int MAXNUMTARASCAS = 2;
 
         int height = context.getHeight();
         int modulo = height % frequency; // need to subtract 1 to get transition right (when jackpot block is reached)
@@ -43,8 +43,7 @@ public class Jackpot extends AbstractContract {
         }
 
         JO message = new JO();
-        message.put("currentHeight",height);
-        message.put("nextJackpotHeight",nextJackpotHeight);
+        //message.put("currentHeight",height);
 
         context.logInfoMessage("run with params: chainId: %d, frequency: %d, collectionRs: %s (at height: %d, lastJackpot: %d, nextJackpot: %d)", chainId, frequency, collectionRs,height,lastJackpotHeight,nextJackpotHeight);
         List<JO> collectionAssets = getCollectionAssets(collectionRs);
@@ -94,6 +93,7 @@ public class Jackpot extends AbstractContract {
 
                     if (numWins > participationMsgs.size()) {
                         message.put("reason","confirmParticipation");
+                        message.put("nextJackpotHeight",nextJackpotHeight);
                         long fee = (long) (IGNIS.ONE_COIN*0.5);
                         JO unconfTx = GetUnconfirmedTransactionsCall.create(2).includeWaitingTransactions(true).account(context.getAccountRs()).account(winner).call();
                         if (unconfTx.getArray("unconfirmedTransactions").size() == 0 && unconfTx.getArray("waitingTransactions").size() == 0) {
@@ -167,11 +167,14 @@ public class Jackpot extends AbstractContract {
                     long fee = (long) (0.5*IGNIS.ONE_COIN);
                     long price = (balance - fee * winnersSize) / winnersSize;
 
-                    message.put("reason","sendPrizeToWinner");
+                    message.put("reason","sendPrize");
                     winners.forEach((winner, jackpots) -> {
                         if (jackpots != 0) {
                             Integer cards = TcWinners.get(winner) == null ? 0 : TcWinners.get(winner);
-                            message.put("numTarascasWon",cards);
+                            JO params = new JO();
+                            params.put("numTarascasWon",cards);
+                            message.put("contract","AssetDistributor");
+                            message.put("params",params);
                             context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
                             SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true).deadline(DEADLINE);
                             context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);

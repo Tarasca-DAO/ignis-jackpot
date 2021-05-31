@@ -592,6 +592,113 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: morePlayers(): Done");
     }
 
+
+    @Test
+    public void testTarascaCardDistribution(){
+        Logger.logDebugMessage("TEST: testTarascaCardDistribution(): Start");
+        int contractFrequency = 9;
+        int confirmationTime = 1;
+        int collectionSize = 3;
+        JO jackParams = new JO();
+        jackParams.put("frequency",contractFrequency);
+        jackParams.put("collectionRs",ALICE.getRsAccount());
+        jackParams.put("confirmationTime",confirmationTime);
+        JO assetJo = initSpecialCardAsset(CHUCK);
+        TransferAssetCall.create(2).secretPhrase(CHUCK.getSecretPhrase()).quantityQNT((long)500).asset(assetJo.getString("asset")).recipient(ALICE.getRsAccount()).feeNQT(IGNIS.ONE_COIN).call();
+        initCollection(collectionSize);
+
+
+        JO distributorParams = new JO();
+        distributorParams.put("asset",assetJo.getString("asset"));
+        distributorParams.put("validSender",ALICE.getRsAccount());
+
+
+        //generateBlock();
+        String distributor = ContractTestHelper.deployContract(AssetDistributor.class,distributorParams,false);
+        String jackName = ContractTestHelper.deployContract(Jackpot.class,jackParams,false);
+        ContractTestHelper.deployContract(DistributedRandomNumberGenerator.class, null, true);
+
+        Logger.logDebugMessage("TEST: testTarascaCardDistribution(): Prepare accounts");
+
+        JO response = GetAssetsByIssuerCall.create().account(ALICE.getRsAccount()).call();
+        JA collectionAssets = response.getArray("assets").getArray(0);
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),BOB.getRsAccount(),"to Bob");
+        sendAssets(collectionAssets,3,ALICE.getSecretPhrase(),DAVE.getRsAccount(),"to Bob");
+
+        Logger.logDebugMessage("TEST: Accounts");
+        Logger.logDebugMessage("TEST: Contract (Alice): "+ALICE.getRsAccount()+", numeric: "+ALICE.getAccount());
+        Logger.logDebugMessage("TEST: Player1  (Bob  ): "+BOB.getRsAccount()+", numeric: "+BOB.getAccount());
+        Logger.logDebugMessage("TEST: Player2  (Dave ): "+DAVE.getRsAccount()+", numeric: "+DAVE.getAccount());
+        Logger.logDebugMessage("TEST: Asset " + assetJo.getString("asset"));
+
+        generateBlock();
+        Logger.logDebugMessage("TEST: testTarascaCardDistribution(): Start playing");
+
+        JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
+        long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
+
+        JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
+        long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
+
+        JO responseDaveBefore = GetBalanceCall.create(IGNIS.getId()).account(DAVE.getRsAccount()).call();
+        long balanceDaveBefore = Long.parseLong((String) responseDaveBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
+
+        //send not all assets to contract, expectation is jackpot will reject BOB!
+        sendAssets(collectionAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"from Bob to Contract ALICE");
+        sendAssets(collectionAssets,1,DAVE.getSecretPhrase(),ALICE.getRsAccount(),"from Dave to Contract ALICE");
+
+        generateBlock();
+        sendAssets(collectionAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"from Bob to Contract ALICE");
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        generateBlock();
+        Logger.logDebugMessage("TEST: testTarascaCardDistribution(): Evaluate results");
+
+
+        /*JO responseEmpty = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
+        long balanceEmpty = Long.parseLong((String) responseEmpty.get("balanceNQT"))/IGNIS.ONE_COIN;
+
+        JO responseBobAfter = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
+        long balanceBobAfter = Long.parseLong((String) responseBobAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
+
+        JO responseDaveAfter = GetBalanceCall.create(IGNIS.getId()).account(DAVE.getRsAccount()).call();
+        long balanceDaveAfter = Long.parseLong((String) responseDaveAfter.get("balanceNQT"))/IGNIS.ONE_COIN;
+
+        long diffAlice = balanceEmpty-balanceFull;
+
+        // TODO: add halfing of the jackpot
+        long jackTotal = abs(diffAlice);
+        long twoWins = jackTotal*2/3;
+        long oneWin = jackTotal*1/3;
+        long expectedBalanceBob = balanceBobBefore + twoWins  -6; // 3 ignis for the fees (2 participation)
+        long expectedBalanceDave = balanceDaveBefore + oneWin -3; // 3 ignis for the fees
+
+        // Make sure Jackpot account is nearly empty
+        Assert.assertTrue( balanceEmpty<10); // 10 ignis tolerance for fees..
+        // Assert bob won the two thirds
+        Assert.assertTrue(abs(balanceBobAfter - expectedBalanceBob)<10);
+        // Assert dave won one third
+        Assert.assertTrue(abs(balanceDaveAfter - expectedBalanceDave)<10);*/
+
+
+        checkTarascaCardMessage(2,3,2);
+
+        response = GetAccountAssetsCall.create().account(BOB.getRsAccount()).asset(assetJo.getString("asset")).call();
+        Assert.assertTrue("assetId matches", response.getString("asset").equals(assetJo.getString("asset")));
+        Assert.assertEquals("quantity as expected",response.getLong("quantityQNT"),(long)2);
+
+        // Assert Dave has one card
+        response = GetAccountAssetsCall.create().account(DAVE.getRsAccount()).asset(assetJo.getString("asset")).call();
+        Assert.assertTrue("assetId matches", response.getString("asset").equals(assetJo.getString("asset")));
+        Assert.assertEquals("quantity as expected",response.getLong("quantityQNT"),(long)1);
+
+
+        Logger.logDebugMessage("TEST: testTarascaCardDistribution(): Done");
+    }
+
+
     public static long getBalance(String accountRs) {
         JO response = GetBalanceCall.create(IGNIS.getId()).account(accountRs).call();
         return Long.parseLong((String) response.get("balanceNQT"))/IGNIS.ONE_COIN;
@@ -608,7 +715,7 @@ public class JackpotTest extends AbstractContractTest {
                 JO messageBody = JO.parse(msg.getString("message"));
                 return (msg.getString("senderRS").equals(ALICE.getRsAccount()) &&
                         messageBody.getString("reason") != null &&
-                        messageBody.getString("reason").equals("sendPrizeToWinner"));
+                        messageBody.getString("reason").equals("sendPrize"));
         }
         ).collect(Collectors.toList());
 
@@ -616,8 +723,11 @@ public class JackpotTest extends AbstractContractTest {
         AtomicInteger numCardsTotalObserved = new AtomicInteger();
         sendPrizeMessages.forEach((msg) -> {
             JO messageBody = JO.parse(msg.getString("message"));
-            Assert.assertTrue(messageBody.getString("reason").equals("sendPrizeToWinner"));
-            int currentValue = messageBody.getInt("numTarascasWon");
+            Assert.assertTrue(messageBody.getString("reason").equals("sendPrize"));
+
+            JO params = messageBody.getJo("params");
+            int currentValue = params.getInt("numTarascasWon");
+
             numCardsTotalObserved.addAndGet(currentValue);
         });
 
@@ -629,8 +739,10 @@ public class JackpotTest extends AbstractContractTest {
         AtomicInteger numCardsPerWinnerMaxObserved = new AtomicInteger();
         sendPrizeMessages.forEach((msg) -> {
             JO messageBody = JO.parse(msg.getString("message"));
-            Assert.assertTrue(messageBody.getString("reason").equals("sendPrizeToWinner"));
-            int currentValue = messageBody.getInt("numTarascasWon");
+            Assert.assertTrue(messageBody.getString("reason").equals("sendPrize"));
+
+            JO params = messageBody.getJo("params");
+            int currentValue = params.getInt("numTarascasWon");
             if (currentValue > numCardsPerWinnerMaxObserved.get()) {
                 numCardsPerWinnerMaxObserved.set(currentValue);
             }
