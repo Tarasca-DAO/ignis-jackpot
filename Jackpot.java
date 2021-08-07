@@ -106,6 +106,7 @@ public class Jackpot extends AbstractContract {
                                     recipient(winner).
                                     deadline(MSGDEADLINE);
                             context.createTransaction(sendMessageCall);
+                            return context.getResponse();
                         }
                         else {
                             context.logInfoMessage("messaging interrupted due to unconfirmed transactions");
@@ -119,8 +120,8 @@ public class Jackpot extends AbstractContract {
                         context.logInfoMessage("messages found: " + participationMsgs.toString());
                     }
                 }
-                return context.getResponse();
-
+                JO returned = new JO();
+                return returned;
             }
             else {
                 int winnersSize = 0;
