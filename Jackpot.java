@@ -97,8 +97,8 @@ public class Jackpot extends AbstractContract {
                         long fee = (long) (IGNIS.ONE_COIN*0.5);
                         JO unconfTx = GetUnconfirmedTransactionsCall.create(2).includeWaitingTransactions(true).account(context.getAccountRs()).account(winner).call();
                         if (unconfTx.getArray("unconfirmedTransactions").size() == 0 && unconfTx.getArray("waitingTransactions").size() == 0) {
-                            context.logInfoMessage("sending message for participation");
-                            SendMessageCall sendMessageCall = SendMessageCall.create(2).
+                            context.logInfoMessage("sending message for participation - disabled for now");
+                            /*SendMessageCall sendMessageCall = SendMessageCall.create(2).
                                     message(message.toJSONString()).
                                     messageIsText(true).
                                     messageIsPrunable(true).
@@ -106,7 +106,9 @@ public class Jackpot extends AbstractContract {
                                     recipient(winner).
                                     deadline(MSGDEADLINE);
                             context.createTransaction(sendMessageCall);
-                            return context.getResponse();
+                            return context.getResponse();*/
+                            JO returned = new JO();
+                            return returned;
                         }
                         else {
                             context.logInfoMessage("messaging interrupted due to unconfirmed transactions");
