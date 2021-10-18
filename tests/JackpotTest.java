@@ -49,6 +49,10 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: Player   (Bob  ): "+BOB.getRsAccount()+", numeric: "+BOB.getAccount());
 
         generateBlock();
+        JO contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
+        Logger.logInfoMessage(contractResponse.toString());
+        Assert.assertTrue( contractResponse.getJo("winners").size() == 0);
+
         Logger.logDebugMessage("TEST: JackpotApi(): Start playing");
 
         JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
@@ -65,7 +69,7 @@ public class JackpotTest extends AbstractContractTest {
         generateBlock();
 
         Logger.logDebugMessage("TEST: JackpotApi(): Evaluate results");
-        JO contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
+        contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
         Logger.logInfoMessage(contractResponse.toString());
         Assert.assertTrue( contractResponse.getJo("winners").size() == 1);
     }
