@@ -23,6 +23,7 @@ public class JackpotTest extends AbstractContractTest {
 
     @Test
     public void JackpotApi(){
+
         Logger.logDebugMessage("TEST: JackpotApi(): Start");
         JO jackParams = new JO();
         int contractFrequency = 9;
@@ -49,29 +50,35 @@ public class JackpotTest extends AbstractContractTest {
         Logger.logDebugMessage("TEST: Player   (Bob  ): "+BOB.getRsAccount()+", numeric: "+BOB.getAccount());
 
         generateBlock();
+
+        Logger.logDebugMessage("TEST: JackpotApi(): Start playing");
+
+        Logger.logDebugMessage("TEST: JackpotApi(): Evaluate response: no winners");
         JO contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
         Logger.logInfoMessage(contractResponse.toString());
         Assert.assertTrue( contractResponse.getJo("winners").size() == 0);
 
-        Logger.logDebugMessage("TEST: JackpotApi(): Start playing");
+        contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
+        Logger.logInfoMessage(contractResponse.toString());
+        Assert.assertTrue( contractResponse.getJo("winners").size() == 0);
 
-        JO responseFull = GetBalanceCall.create(IGNIS.getId()).account(ALICE.getRsAccount()).call();
-        long balanceFull = Long.parseLong((String) responseFull.get("balanceNQT"))/IGNIS.ONE_COIN;
-        long expectedJackpot = balanceFull/2;
 
-        JO responseBobBefore = GetBalanceCall.create(IGNIS.getId()).account(BOB.getRsAccount()).call();
-        long balanceBobBefore = Long.parseLong((String) responseBobBefore.get("balanceNQT"))/IGNIS.ONE_COIN;
-
-        //send not all assets to contract, expectation is jackpot will reject BOB!
         sendAssets(collectionAssets,1,BOB.getSecretPhrase(),ALICE.getRsAccount(),"to Contract ALICE");
-
-        generateBlock();
         generateBlock();
 
-        Logger.logDebugMessage("TEST: JackpotApi(): Evaluate results");
+        Logger.logDebugMessage("TEST: JackpotApi(): Evaluate response 1 winner");
         contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
         Logger.logInfoMessage(contractResponse.toString());
         Assert.assertTrue( contractResponse.getJo("winners").size() == 1);
+
+        generateBlock(); // generating block 9
+        generateBlock();
+
+        Logger.logDebugMessage("TEST: JackpotApi(): check for new cycle response is reset");
+        contractResponse = TriggerContractByRequestCall.create().contractName("Jackpot").call();
+        Logger.logInfoMessage(contractResponse.toString());
+        Assert.assertTrue( contractResponse.getJo("winners").size() == 0);
+
     }
 
     @Test

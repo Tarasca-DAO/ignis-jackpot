@@ -53,103 +53,99 @@ public class Jackpot extends AbstractContract {
         List<JO> collectionAssets = getCollectionAssets(collectionRs);
         List<TransactionResponse> payments = getPaymentTransactions(context, chainId, lastJackpotHeight+1, context.getAccount(), adminPassword);
 
-        if (payments.size() == 0) {
-            JO returned = new JO();
-            returned.put("message", "No incoming payments between block " + (lastJackpotHeight+1) + " and " + height + ", exit.");
-            return returned;
-        } else {
-            context.logInfoMessage("Incoming payments between block %d and %d, now checking against collection reqs", lastJackpotHeight+1, height);
 
-            Set<String> senders = getUniqueSenders(payments);
-            context.logInfoMessage("getUniqueSenders(): " + senders.toString());
+        //context.logInfoMessage("Incoming payments between block %d and %d, now checking against collection reqs", lastJackpotHeight+1, height);
 
-            Map<String, Integer> winners = new HashMap<String, Integer>();
-            for(String sender : senders){
-                int winnerJackpots = confirmJackpotsForSender(context, sender, context.getAccount(), collectionAssets, payments);
-                winners.put(sender,winnerJackpots);
+        Set<String> senders = getUniqueSenders(payments);
+        context.logInfoMessage("getUniqueSenders(): " + senders.toString());
+
+        Map<String, Integer> winners = new HashMap<String, Integer>();
+        for(String sender : senders){
+            int winnerJackpots = confirmJackpotsForSender(context, sender, context.getAccount(), collectionAssets, payments);
+            winners.put(sender,winnerJackpots);
+        }
+        context.logInfoMessage("confirmJackpotForSender() Winners: " + winners.toString());
+        persistentWinners = winners;
+
+        // check jackpot block or not
+        if (modulo != 0) {
+            return context.generateInfoResponse("No jackpot block height, exit");
+        }
+        else {
+            int winnersSize = 0;
+            for (Map.Entry mapElement : winners.entrySet()) {
+                int value = (int) mapElement.getValue();
+                winnersSize += value;
             }
-            context.logInfoMessage("confirmJackpotForSender() Winners: " + winners.toString());
-            persistentWinners = winners;
-            // check jackpot block or not
-            if (modulo != 0) {
-                return context.generateInfoResponse("No jackpot block height, exit");
+
+            if (winnersSize > 0) {
+                //init randomness for TC lottery
+                initRandomness(context);
+                ContractAndSetupParameters contractAndParameters = context.loadContract("DistributedRandomNumberGenerator");
+                Contract<Map<String, Long>, String> distributedRandomNumberGenerator = contractAndParameters.getContract();
+                DelegatedContext delegatedContext = new DelegatedContext(context, distributedRandomNumberGenerator.getClass().getName(), contractAndParameters.getParams());
+
+                // type casting joy
+                //final int winnersSizeFinal = winnersSize;
+                Map<String,Long> winnersl = new HashMap<>();
+                winners.forEach(
+                        (account,participations) -> {
+                            //long weight = (long)participations;
+                            winnersl.put(account, (long)participations);
+                        });
+
+                // run TC lottery
+                int cardsForDraw = Math.min(winnersSize,maxnumtarascas);
+                Map<String,Integer> TcWinners = new HashMap<>();
+                for(int i=0; i<cardsForDraw; i++) {
+                    String TcWinner = distributedRandomNumberGenerator.processInvocation(delegatedContext, winnersl);
+                    Integer curValue = TcWinners.putIfAbsent(TcWinner, 1);
+                    if (curValue != null) {
+                        TcWinners.put(TcWinner, curValue + 1);
+                    }
+                    //update winnersl to reduce the weight of the current winning account
+                    long oldWeight = winnersl.get(TcWinner);
+                    long newWeight = oldWeight >= (long)1.0 ? (long) (oldWeight - 1.0) : (long)0.0;
+                    winnersl.replace(TcWinner,oldWeight,newWeight);
+                }
+
+                JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
+                long balance=0;
+                balance = jackpotIsHalfBalance ? response.getLong("balanceNQT")/2 : response.getLong("balanceNQT");
+
+                long fee = (long) (0.5*IGNIS.ONE_COIN);
+                long price = (balance - 2 * fee * winnersSize) / winnersSize;
+                long priceAsset = IGNIS.ONE_COIN*GEMPRIZE/winnersSize;
+
+                message.put("reason","sendPrize");
+                int finalWinnersSize = winnersSize;
+                winners.forEach((winner, jackpots) -> {
+                    if (jackpots != 0) {
+                        Integer cards = TcWinners.get(winner) == null ? 0 : TcWinners.get(winner);
+                        JO params = new JO();
+                        params.put("numTarascasWon",cards);
+                        message.put("contract","AssetDistributor");
+                        message.put("params",params);
+                        params.put("participations",jackpots);
+                        params.put("totalParticipations", finalWinnersSize);
+                        context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
+                        SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true).deadline(DEADLINE);
+                        context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
+                        context.createTransaction(sendMoneyCall);
+
+                        // Send GEM Asset
+                        TransferAssetCall transferAssetCall = TransferAssetCall.create(chainId).asset(pAsset).recipient(winner).quantityQNT(priceAsset * jackpots).feeNQT(fee).deadline(DEADLINE);
+                        context.logInfoMessage("Send Prize: %d Assets to %s", priceAsset * jackpots, winner);
+                        context.createTransaction(transferAssetCall);
+                    }
+                });
+                context.logInfoMessage("finished, exiting.");
+                return context.getResponse();
             }
             else {
-                int winnersSize = 0;
-                for (Map.Entry mapElement : winners.entrySet()) {
-                    int value = (int) mapElement.getValue();
-                    winnersSize += value;
-                }
-
-                if (winnersSize > 0) {
-                    //init randomness for TC lottery
-                    initRandomness(context);
-                    ContractAndSetupParameters contractAndParameters = context.loadContract("DistributedRandomNumberGenerator");
-                    Contract<Map<String, Long>, String> distributedRandomNumberGenerator = contractAndParameters.getContract();
-                    DelegatedContext delegatedContext = new DelegatedContext(context, distributedRandomNumberGenerator.getClass().getName(), contractAndParameters.getParams());
-
-                    // type casting joy
-                    //final int winnersSizeFinal = winnersSize;
-                    Map<String,Long> winnersl = new HashMap<>();
-                    winners.forEach(
-                            (account,participations) -> {
-                                //long weight = (long)participations;
-                                winnersl.put(account, (long)participations);
-                            });
-
-                    // run TC lottery
-                    int cardsForDraw = Math.min(winnersSize,maxnumtarascas);
-                    Map<String,Integer> TcWinners = new HashMap<>();
-                    for(int i=0; i<cardsForDraw; i++) {
-                        String TcWinner = distributedRandomNumberGenerator.processInvocation(delegatedContext, winnersl);
-                        Integer curValue = TcWinners.putIfAbsent(TcWinner, 1);
-                        if (curValue != null) {
-                            TcWinners.put(TcWinner, curValue + 1);
-                        }
-                        //update winnersl to reduce the weight of the current winning account
-                        long oldWeight = winnersl.get(TcWinner);
-                        long newWeight = oldWeight >= (long)1.0 ? (long) (oldWeight - 1.0) : (long)0.0;
-                        winnersl.replace(TcWinner,oldWeight,newWeight);
-                    }
-
-                    JO response = GetBalanceCall.create(2).account(context.getAccountRs()).call();
-                    long balance=0;
-                    balance = jackpotIsHalfBalance ? response.getLong("balanceNQT")/2 : response.getLong("balanceNQT");
-
-                    long fee = (long) (0.5*IGNIS.ONE_COIN);
-                    long price = (balance - 2 * fee * winnersSize) / winnersSize;
-                    long priceAsset = IGNIS.ONE_COIN*GEMPRIZE/winnersSize;
-
-                    message.put("reason","sendPrize");
-                    int finalWinnersSize = winnersSize;
-                    winners.forEach((winner, jackpots) -> {
-                        if (jackpots != 0) {
-                            Integer cards = TcWinners.get(winner) == null ? 0 : TcWinners.get(winner);
-                            JO params = new JO();
-                            params.put("numTarascasWon",cards);
-                            message.put("contract","AssetDistributor");
-                            message.put("params",params);
-                            params.put("participations",jackpots);
-                            params.put("totalParticipations", finalWinnersSize);
-                            context.logInfoMessage("Incoming assets between block %d and %d. Account %s won the jackpot", Math.max(0, height - frequency + 1), height, winner);
-                            SendMoneyCall sendMoneyCall = SendMoneyCall.create(chainId).recipient(winner).amountNQT(price * jackpots).feeNQT(fee).message(message.toJSONString()).messageIsText(true).messageIsPrunable(true).deadline(DEADLINE);
-                            context.logInfoMessage("Send Prize: %d Ignis to %s", price * jackpots, winner);
-                            context.createTransaction(sendMoneyCall);
-
-                            // Send GEM Asset
-                            TransferAssetCall transferAssetCall = TransferAssetCall.create(chainId).asset(pAsset).recipient(winner).quantityQNT(priceAsset * jackpots).feeNQT(fee).deadline(DEADLINE);
-                            context.logInfoMessage("Send Prize: %d Assets to %s", priceAsset * jackpots, winner);
-                            context.createTransaction(transferAssetCall);
-                        }
-                    });
-                    context.logInfoMessage("finished, exiting.");
-                    return context.getResponse();
-                }
-                else {
-                    JO returned = new JO();
-                    returned.put("message", "No set of incoming assets between block " + (lastJackpotHeight+1) + " and " + height + " won the jackpot, exit.");
-                    return returned;
-                }
+                JO returned = new JO();
+                returned.put("message", "No set of incoming assets between block " + (lastJackpotHeight+1) + " and " + height + " won the jackpot, exit.");
+                return returned;
             }
         }
     }
@@ -243,8 +239,8 @@ public class Jackpot extends AbstractContract {
         }
         message.put("winners",winneroutput);
         return message;
-
     }
+
 
     @ContractParametersProvider
     public interface Params {
